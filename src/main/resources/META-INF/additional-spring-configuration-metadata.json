@@ -1,0 +1,15 @@
+{
+  "properties": [
+    {
+      "name": "app.jwt.secret",
+      "type": "java.lang.String",
+      "description": "Base64-encoded JWT HMAC secret key."
+    },
+    {
+      "name": "app.jwt.expiration-seconds",
+      "type": "java.lang.Long",
+      "description": "JWT expiration duration in seconds.",
+      "defaultValue": 3600
+    }
+  ]
+}
