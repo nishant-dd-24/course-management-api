@@ -23,6 +23,12 @@ public class Course {
     @Column(nullable = false)
     private String description;
 
+    @Column(name = "max_seats", nullable = false)
+    private Long maxSeats;
+
+    @Column(name = "enrolled_students", nullable = false)
+    private Long enrolledStudents;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "instructor_id", nullable = false)
     private User instructor;

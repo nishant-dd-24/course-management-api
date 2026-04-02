@@ -1,9 +1,11 @@
 package com.nishant.coursemanagement.repository.course;
 
 import com.nishant.coursemanagement.entity.Course;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -23,4 +25,7 @@ AND (:instructorId IS NULL OR c.instructor.id = :instructorId)
             @Param("instructorId") Long instructorId,
             Pageable pageable
     );
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM Course c WHERE c.id = :courseId AND c.isActive = true")
+    Optional<Course> findByIdForUpdate(@Param("courseId") Long courseId);
 }

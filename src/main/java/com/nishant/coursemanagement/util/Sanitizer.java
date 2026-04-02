@@ -46,6 +46,7 @@ public class Sanitizer {
         return CourseRequest.builder()
                 .title(normalizedTitle)
                 .description(normalizedDescription)
+                .maxSeats(request.maxSeats())
                 .build();
     }
 }

@@ -28,7 +28,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
                        @NonNull HttpServletResponse response,
                        @NonNull AccessDeniedException ex) throws IOException {
         log.warn("action=ACCESS_DENIED path={} message={}", request.getRequestURI(), ex.getMessage());
-        ErrorResponse error = errorResponseFactory.forbidden("Access Denied");
+        ErrorResponse error = errorResponseFactory.forbidden("Access Denied", request);
         errorResponseWriter.write(response, error);
     }
 }

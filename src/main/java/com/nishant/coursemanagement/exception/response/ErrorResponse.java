@@ -10,6 +10,9 @@ import java.util.Map;
 
 @Builder
 public record ErrorResponse (
+    String traceId,
+    String path,
+    String method,
     int status,
     String message,
     ErrorCode errorCode,
