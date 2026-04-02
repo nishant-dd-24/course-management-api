@@ -12,10 +12,10 @@ import java.util.Optional;
 public interface CourseRepository extends JpaRepository<Course, Long> {
     Optional<Course> findByIdAndIsActiveTrue(Long id);
     @Query("""
-    SELECT c FROM Course c
-    WHERE (:title IS NULL OR LOWER(c.title) LIKE LOWER(CONCAT('%', :title, '%')))
-    AND (:active IS NULL OR c.isActive = :active)
-    AND (:instructorId IS NULL OR c.instructor.id = :instructorId)
+SELECT c FROM Course c
+WHERE (:title IS NULL OR LOWER(c.title) LIKE :title)
+AND (:active IS NULL OR c.isActive = :active)
+AND (:instructorId IS NULL OR c.instructor.id = :instructorId)
 """)
     Page<Course> findCourses(
             @Param("title") String title,

@@ -92,8 +92,8 @@ public class UserServiceImpl implements UserService {
     @Override
     public Page<UserResponse> getAllUsers(String name, String email, Boolean active, Pageable pageable){
         log.debug("action=GET_ALL_USERS name={} email={} active={} pageNumber={} pageSize={}", name, email, active, pageable.getPageNumber(), pageable.getPageSize());
-        name = StringUtil.normalize(name);
-        email = StringUtil.normalize(email);
+        name = StringUtil.makeQueryLike(name);
+        email = StringUtil.makeQueryLike(email);
         return userRepository.findUsers(name, email, active, pageable)
                 .map(UserMapper::toResponse);
     }

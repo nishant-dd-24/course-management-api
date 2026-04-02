@@ -43,12 +43,12 @@ public class EnrollmentServiceImpl implements EnrollmentService{
             log.warn("action=ENROLL_DUPLICATE userId={} courseId={}", currentUser.getId(), courseId);
             Enrollment existingEnrollment = enrollmentRepository.findByStudentIdAndCourseId(currentUser.getId(), courseId)
                     .orElseThrow(() -> exceptionUtil.notFound("Enrollment not found"));
-            if(existingEnrollment.isActive()){
+            if(existingEnrollment.getIsActive()){
                 log.warn("action=ENROLL_FAILED reason=ALREADY_ENROLLED_ACTIVE userId={} courseId={}", currentUser.getId(), courseId);
                 throw exceptionUtil.duplicate("Already enrolled");
             } else {
                 log.info("action=REACTIVATE_ENROLLMENT userId={} courseId={}", currentUser.getId(), courseId);
-                existingEnrollment.setActive(true);
+                existingEnrollment.setIsActive(true);
                 return EnrollmentMapper.toResponse(enrollmentRepository.save(existingEnrollment));
             }
         }
@@ -88,7 +88,7 @@ public class EnrollmentServiceImpl implements EnrollmentService{
                 .findByStudentIdAndCourseId(currentUser.getId(), courseId)
                 .orElseThrow(() -> exceptionUtil.notFound("Enrollment not found"));
         log.warn("action=UNENROLL userId={} courseId={}", currentUser.getId(), courseId);
-        enrollment.setActive(false);
+        enrollment.setIsActive(false);
         enrollmentRepository.save(enrollment);
     }
 }

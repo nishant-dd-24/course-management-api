@@ -30,7 +30,7 @@ public class Enrollment {
 
     @Builder.Default
     @Column(name = "is_active", nullable = false)
-    private boolean isActive = true;
+    private Boolean isActive = true;
 
     @Column(name = "enrolled_at")
     private LocalDateTime enrolledAt;

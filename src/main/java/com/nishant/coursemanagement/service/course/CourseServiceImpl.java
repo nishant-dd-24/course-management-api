@@ -62,7 +62,7 @@ public class CourseServiceImpl implements CourseService{
 
     @Override
     public Page<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable){
-        title = StringUtil.normalize(title);
+        title = StringUtil.makeQueryLike(title);
         log.debug("action=GET_ALL_COURSES title={} active={} instructorId={} pageNumber={} pageSize={}", title, active, instructorId, pageable.getPageNumber(), pageable.getPageSize());
         return courseRepository
                 .findCourses(title, active, instructorId, pageable)
