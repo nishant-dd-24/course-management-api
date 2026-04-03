@@ -13,7 +13,18 @@ A backend system built using Spring Boot for managing users, courses, and enroll
 * 🔍 Search, filtering, and pagination support
 * 🛡️ Global exception handling
 * 🧹 Input sanitization & validation
-* 📊 Structured logging for debugging and monitoring
+
+### 🔍 Observability
+
+* Request tracing using correlation IDs
+* Trace ID propagation via `X-Trace-Id` header
+* MDC-based logging for request-level debugging
+
+### ⚙️ Concurrency Handling
+
+* Pessimistic locking using JPA (`PESSIMISTIC_WRITE`)
+* Prevents race conditions during concurrent updates
+* Ensures data consistency in critical operations (e.g., enrollments)
 
 ---
 
@@ -31,6 +42,7 @@ A backend system built using Spring Boot for managing users, courses, and enroll
 ## 📁 Project Structure
 
 ```
+config       → application configuration (security, jackson, etc.)
 controller   → REST endpoints  
 service      → business logic  
 repository   → database layer  
@@ -38,7 +50,8 @@ dto          → request/response models
 entity       → database entities  
 mapper       → entity ↔ DTO conversion  
 exception    → custom exceptions & handlers  
-security     → JWT & authentication  
+security     → JWT config & authentication  
+filter       → request filters (JWT filter, Trace filter)  
 util         → helper utilities  
 ```
 
@@ -105,12 +118,46 @@ export JWT_EXPIRATION_SECONDS=3600
 
 ---
 
+## 🧠 Design Decisions
+
+### Request Tracing
+
+Implemented using a custom `OncePerRequestFilter`:
+
+* Generates a unique trace ID per request (if not provided)
+* Propagates trace ID via `X-Trace-Id` header
+* Stores trace ID in MDC for structured logging
+
+**Why?**
+- Helps correlate logs across a single request
+- Improves debugging in distributed or concurrent systems
+
+---
+
+### Pessimistic Locking for Concurrency Control
+
+Used `@Lock(LockModeType.PESSIMISTIC_WRITE)` in critical queries.
+
+**Why?**
+- Prevents race conditions during concurrent updates
+- Ensures strict consistency for operations like enrollment
+
+**Trade-offs:**
+- Reduced concurrency under high load
+- Potential for lock contention
+
+**Why not optimistic locking?**
+- Avoids retry complexity
+- Better suited for high-contention scenarios
+
+---
+
 ## 📊 Logging Example
 
 ```
-ACTION=CREATE_USER email=user@example.com  
-ACTION=LOGIN_SUCCESS userId=22  
-ACTION=CREATE_USER_DUPLICATE email=user@example.com  
+[traceId=abc123] ACTION=CREATE_USER email=user@example.com  
+[traceId=abc123] ACTION=LOGIN_SUCCESS userId=22  
+[traceId=xyz789] ACTION=ENROLL_USER userId=14 courseId=3    
 ```
 
 ---
@@ -128,19 +175,18 @@ ACTION=CREATE_USER_DUPLICATE email=user@example.com
 
 ### 🔍 Observability & Monitoring
 
-* Request tracing with correlation IDs
+* Distributed tracing (e.g., OpenTelemetry)
 * Metrics & monitoring (Spring Actuator / Prometheus)
 
 ### ⚡ Performance Optimization
 
-* Caching (e.g., Redis) for frequently accessed data
+* Caching (e.g., Redis)
 * Database indexing & query optimization
 * Pagination tuning for large datasets
 
 ### 🔐 Security & Reliability
 
 * Rate limiting to prevent abuse
-* Handling concurrency & race conditions (e.g., duplicate enrollments)
 * Improved validation & edge case handling
 
 ### 🧪 Quality & Deployment
