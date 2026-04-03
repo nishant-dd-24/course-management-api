@@ -13,14 +13,18 @@ import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import javax.naming.AuthenticationException;
 import java.util.Arrays;
@@ -100,10 +104,40 @@ public class GlobalExceptionHandler {
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, ex.getMessage(), ex.getErrorCode(), request);
     }
 
-    @ExceptionHandler
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request){
+        log.warn("action=TYPE_MISMATCH message={}", ex.getMessage());
+        assert ex.getRequiredType() != null;
+        String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'. Expected type: " + ex.getRequiredType().getSimpleName();
+        return errorResponseFactory.build(HttpStatus.BAD_REQUEST, message, ErrorCode.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ErrorResponse handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, HttpServletRequest request){
+        log.warn("action=METHOD_NOT_ALLOWED message={}", ex.getMessage());
+        String supported = ex.getSupportedHttpMethods() == null
+                ? ""
+                : ex.getSupportedHttpMethods().stream()
+                  .map(HttpMethod::name)
+                  .reduce((a, b) -> a + ", " + b)
+                  .orElse("");
+        String message = "HTTP method '" + ex.getMethod() + "' is not supported for this endpoint. Supported methods: " + supported;
+        return errorResponseFactory.build(HttpStatus.METHOD_NOT_ALLOWED, message, ErrorCode.BAD_REQUEST, request);
+    }
+
+    @ExceptionHandler(NoHandlerFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorResponse handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
+        log.warn("action=NO_HANDLER_FOUND message={}", ex.getMessage());
+        return errorResponseFactory.build(HttpStatus.NOT_FOUND, "The requested resource was not found", ErrorCode.NOT_FOUND, request);
+    }
+
+    @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public ErrorResponse handleRuntimeException(RuntimeException ex, HttpServletRequest request){
+    public ErrorResponse handleRuntimeException(Exception ex, HttpServletRequest request){
         log.error("action=INTERNAL_SERVER_ERROR message={}", ex.getMessage(), ex);
-        return errorResponseFactory.build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), ErrorCode.INTERNAL_ERROR, request);
+        return errorResponseFactory.build(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong", ErrorCode.INTERNAL_ERROR, request);
     }
 }

@@ -27,7 +27,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
                          @NonNull HttpServletResponse response,
                          @NonNull AuthenticationException ex) throws IOException{
         log.warn("action=AUTHENTICATION_FAILED path={} message={}", request.getRequestURI(), ex.getMessage());
-        ErrorResponse error = errorResponseFactory.unauthorized(ex.getMessage(), request);
+        ErrorResponse error = errorResponseFactory.unauthorized("Authentication required", request);
         errorResponseWriter.write(response, error);
     }
 }
