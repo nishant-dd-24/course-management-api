@@ -4,6 +4,7 @@ package com.nishant.coursemanagement.config;
 import com.nishant.coursemanagement.exception.security.CustomAccessDeniedHandler;
 import com.nishant.coursemanagement.exception.security.CustomAuthenticationEntryPoint;
 import com.nishant.coursemanagement.filter.JwtFilter;
+import com.nishant.coursemanagement.filter.RateLimitFilter;
 import com.nishant.coursemanagement.filter.TraceFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -28,6 +29,7 @@ public class SecurityConfig {
     private final CustomAccessDeniedHandler accessDeniedHandler;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
     private final TraceFilter traceFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) {
@@ -51,6 +53,7 @@ public class SecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .logout(AbstractHttpConfigurer::disable)
                 .addFilterBefore(traceFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -7,24 +7,36 @@ A backend system built using Spring Boot for managing users, courses, and enroll
 ## 🚀 Features
 
 * 🔐 JWT-based authentication & authorization
-* 👥 Role-based access (ADMIN, INSTRUCTOR, STUDENT)
-* 📚 Course management (create, update, delete, search, pagination)
-* 🎓 Enrollment system with validation
-* 🔍 Search, filtering, and pagination support
-* 🛡️ Global exception handling
-* 🧹 Input sanitization & validation
+* 👥 Role-based access control (ADMIN, INSTRUCTOR, STUDENT)
+* 📚 Course management (CRUD, pagination, filtering, search)
+* 🎓 Enrollment system with validation & constraints
+* 🛡️ Global exception handling with consistent JSON responses
+* 🧹 Input validation & sanitization
 
 ### 🔍 Observability
 
 * Request tracing using correlation IDs
 * Trace ID propagation via `X-Trace-Id` header
-* MDC-based logging for request-level debugging
+* MDC-based structured logging for request-level debugging
 
 ### ⚙️ Concurrency Handling
 
 * Pessimistic locking using JPA (`PESSIMISTIC_WRITE`)
 * Prevents race conditions during concurrent updates
-* Ensures data consistency in critical operations (e.g., enrollments)
+* Ensures strict data consistency in critical operations
+
+### 🚦 Rate Limiting
+
+* Role-based rate limiting (ADMIN, INSTRUCTOR, STUDENT, ANONYMOUS)
+* Endpoint-specific rate limits (login, enrollments, read-heavy APIs)
+* Hybrid identity resolution (JWT user or IP fallback)
+* Token bucket algorithm using Bucket4j
+* Caffeine-based cache with automatic eviction
+* Path normalization (`/resource/{id}`) to prevent bucket explosion
+* Standard rate limit headers:
+    - `X-RateLimit-Limit`
+    - `X-RateLimit-Remaining`
+    - `Retry-After`
 
 ---
 
@@ -51,7 +63,7 @@ entity       → database entities
 mapper       → entity ↔ DTO conversion  
 exception    → custom exceptions & handlers  
 security     → JWT config & authentication  
-filter       → request filters (JWT filter, Trace filter)  
+filter       → request filters (Trace, JWT, Rate Limiting)
 util         → helper utilities  
 ```
 
@@ -86,7 +98,7 @@ export JWT_EXPIRATION_SECONDS=3600
 
 ### 🔐 Authentication
 
-* `POST /auth/login` → Login and get JWT token
+* `POST /users/login` → Login and get JWT token
 
 ---
 
@@ -116,6 +128,50 @@ export JWT_EXPIRATION_SECONDS=3600
 * `GET /enrollments` → Get enrollments (filter, pagination)
 * `DELETE /enrollments/{id}` → Cancel enrollment
 
+---
+
+## 🔄 Request Flow
+
+Client  
+↓  
+Trace Filter  
+↓  
+Rate Limit Filter  
+↓  
+JWT Authentication  
+↓  
+Controller
+
+---
+
+## 📐 API Behavior & Error Handling
+
+This API follows RESTful standards for error handling and response consistency.
+
+| Scenario                             | Status Code            |
+|--------------------------------------|------------------------|
+| Invalid request / Validation failure | 400 Bad Request        |
+| Authentication required              | 401 Unauthorized       |
+| Access denied                        | 403 Forbidden          |
+| Resource not found                   | 404 Not Found          |
+| Method not allowed                   | 405 Method Not Allowed |
+| Rate limit exceeded                  | 429 Too Many Requests  |
+
+
+### Example Error Response
+
+```json
+{
+  "traceId": "2cf5dd29-3bb0-44b3-921a-2ac07aa09f4a",
+  "path": "/users/abc",
+  "method": "GET",
+  "status": 400,
+  "message": "Invalid value 'abc' for parameter 'id'. Expected type: Long",
+  "errorCode": "BAD_REQUEST",
+  "timestamp": "2026-04-03T08:52:47.856580784",
+  "errors": {}
+}
+```
 ---
 
 ## 🧠 Design Decisions
@@ -152,6 +208,28 @@ Used `@Lock(LockModeType.PESSIMISTIC_WRITE)` in critical queries.
 
 ---
 
+### Rate Limiting Strategy
+
+Implemented using a custom filter with Bucket4j and Caffeine.
+
+**Key Design Choices:**
+- Token bucket algorithm for smooth request throttling
+- Role-based limits to prioritize privileged users
+- Endpoint-specific limits for sensitive operations (e.g., login)
+- Path normalization to prevent excessive bucket creation
+- Caffeine cache to handle memory efficiently
+
+**Why?**
+- Prevent abuse (e.g., brute-force login attempts)
+- Protect critical endpoints
+- Ensure fair resource usage across users
+
+**Trade-offs:**
+- In-memory limits reset on application restart
+- Not distributed (can be improved with Redis)
+
+---
+
 ## 📊 Logging Example
 
 ```
@@ -165,9 +243,10 @@ Used `@Lock(LockModeType.PESSIMISTIC_WRITE)` in critical queries.
 ## 🎯 Key Highlights
 
 * Clean layered architecture
-* Proper separation of concerns
-* Production-style logging format
-* Handles edge cases like duplicate users, invalid access, etc.
+* Production-oriented backend design (rate limiting, tracing, concurrency control)
+* Consistent and RESTful error handling across all layers
+* Multi-layer request processing pipeline (Trace → Rate Limit → Auth → Controller)
+* Thread-safe and memory-efficient rate limiting implementation
 
 ---
 
@@ -186,8 +265,9 @@ Used `@Lock(LockModeType.PESSIMISTIC_WRITE)` in critical queries.
 
 ### 🔐 Security & Reliability
 
-* Rate limiting to prevent abuse
-* Improved validation & edge case handling
+* Distributed rate limiting using Redis
+* Advanced validation & edge case handling
+* API abuse detection & monitoring
 
 ### 🧪 Quality & Deployment
 

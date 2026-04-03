@@ -11,5 +11,6 @@ public enum ErrorCode {
     ACCESS_DENIED,
     UNAUTHENTICATED,
     BAD_REQUEST,
+    RATE_LIMIT_EXCEEDED,
     INTERNAL_ERROR
 }
