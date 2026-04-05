@@ -17,7 +17,7 @@ public class AuthUtil {
     public User getCurrentUser() {
         String email = Objects.requireNonNull(SecurityContextHolder.getContext()
                         .getAuthentication())
-                        .getName();
+                .getName();
         return userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }

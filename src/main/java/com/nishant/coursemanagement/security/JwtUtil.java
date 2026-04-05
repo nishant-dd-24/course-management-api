@@ -2,6 +2,7 @@ package com.nishant.coursemanagement.security;
 
 
 import com.nishant.coursemanagement.entity.Role;
+import com.nishant.coursemanagement.util.LogUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -30,7 +31,7 @@ public class JwtUtil {
         signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
-    public String generateToken(String email, Role  role) {
+    public String generateToken(String email, Role role) {
         return Jwts.builder()
                 .subject(email)
                 .claim("role", role.name())
@@ -44,7 +45,7 @@ public class JwtUtil {
         return extractAllClaims(token).getSubject();
     }
 
-    public Role extractRole(String token){
+    public Role extractRole(String token) {
         return Role.valueOf(extractAllClaims(token).get("role", String.class));
     }
 
@@ -52,8 +53,14 @@ public class JwtUtil {
         try {
             return !extractAllClaims(token).getExpiration().before(Date.from(Instant.now()));
         } catch (Exception ex) {
-            log.warn("action=TOKEN_VALIDATION_FAILEDmessage={}", ex.getMessage());
-            log.debug("action=TOKEN_VALIDATION_FAILED", ex);
+            try {
+                LogUtil.put("action", "TOKEN_VALIDATION_FAILED");
+                LogUtil.put("message", ex.getMessage());
+                log.warn("Token validation failed");
+            } finally {
+                LogUtil.clear();
+            }
+            log.debug("Token validation failed", ex);
             return false;
         }
     }

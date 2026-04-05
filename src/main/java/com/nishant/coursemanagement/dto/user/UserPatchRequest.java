@@ -5,7 +5,7 @@ import jakarta.validation.constraints.Email;
 import lombok.Builder;
 
 @Builder
-public record UserPatchRequest (
+public record UserPatchRequest(
 
         String name,
 
@@ -13,4 +13,5 @@ public record UserPatchRequest (
         String email,
 
         Role role
-) {}
+) {
+}

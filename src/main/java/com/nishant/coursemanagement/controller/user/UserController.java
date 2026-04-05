@@ -1,11 +1,11 @@
 package com.nishant.coursemanagement.controller.user;
 
 
+import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.user.*;
 import com.nishant.coursemanagement.service.user.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -25,20 +25,25 @@ public class UserController {
         return userService.createUser(user);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/{id}")
-    public UserResponse getUserById(@PathVariable Long id) {
-        return userService.getUserById(id);
+    @PostMapping("/login")
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+        return userService.login(request);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
-    public Page<UserResponse> getAllUsers(
+    public PageResponse<UserResponse> getAllUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String email,
             @RequestParam(required = false) Boolean active,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
         return userService.getAllUsers(name, email, active, pageable);
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/{id}")
+    public UserResponse getUserById(@PathVariable Long id) {
+        return userService.getUserById(id);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -86,8 +91,5 @@ public class UserController {
         return userService.changePassword(request);
     }
 
-    @PostMapping("/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
-        return userService.login(request);
-    }
+
 }

@@ -3,7 +3,7 @@ package com.nishant.coursemanagement.dto.course;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.Builder;
 
 
 @Builder
@@ -16,4 +16,5 @@ public record CourseRequest(
 
         @Min(value = 1, message = "Max seats must be at least 1, or you can leave it null for default value of 20")
         Long maxSeats
-) {}
+) {
+}

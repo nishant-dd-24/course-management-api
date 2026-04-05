@@ -28,6 +28,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
@@ -47,13 +48,13 @@ public class JwtFilter extends OncePerRequestFilter {
             }
             String email = jwtUtil.extractEmail(token);
             Role role = jwtUtil.extractRole(token);
-            List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_"+role));
+            List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
                     email,
                     null,
                     authorities
             );
-            if(SecurityContextHolder.getContext().getAuthentication() == null) {
+            if (SecurityContextHolder.getContext().getAuthentication() == null) {
                 SecurityContextHolder.getContext().setAuthentication(authenticationToken);
             }
 

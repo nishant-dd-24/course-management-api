@@ -3,6 +3,7 @@ package com.nishant.coursemanagement.exception.security;
 import com.nishant.coursemanagement.exception.response.ErrorResponse;
 import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import com.nishant.coursemanagement.exception.response.ErrorResponseWriter;
+import com.nishant.coursemanagement.util.LogUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,14 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
     public void handle(@NonNull HttpServletRequest request,
                        @NonNull HttpServletResponse response,
                        @NonNull AccessDeniedException ex) throws IOException {
-        log.warn("action=ACCESS_DENIED path={} message={}", request.getRequestURI(), ex.getMessage());
+        try {
+            LogUtil.put("action", "ACCESS_DENIED");
+            LogUtil.put("path", request.getRequestURI());
+            LogUtil.put("message", ex.getMessage());
+            log.warn("Access denied");
+        } finally {
+            LogUtil.clear();
+        }
         ErrorResponse error = errorResponseFactory.forbidden("Access Denied", request);
         errorResponseWriter.write(response, error);
     }

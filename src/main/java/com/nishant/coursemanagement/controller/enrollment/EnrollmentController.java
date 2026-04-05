@@ -1,9 +1,9 @@
 package com.nishant.coursemanagement.controller.enrollment;
 
+import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.enrollment.EnrollmentResponse;
 import com.nishant.coursemanagement.service.enrollment.EnrollmentService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
@@ -18,31 +18,31 @@ public class EnrollmentController {
 
     @PreAuthorize("hasRole('STUDENT')")
     @PostMapping("/{courseId}")
-    public EnrollmentResponse enroll(@PathVariable Long courseId){
+    public EnrollmentResponse enroll(@PathVariable Long courseId) {
         return enrollmentService.enroll(courseId);
     }
 
     @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/my")
-    public Page<EnrollmentResponse> myEnrollments(
+    public PageResponse<EnrollmentResponse> myEnrollments(
             @RequestParam(required = false) Boolean active,
-            @PageableDefault(size = 5, sort = "id") Pageable pageable){
+            @PageableDefault(size = 5, sort = "id") Pageable pageable) {
         return enrollmentService.getMyEnrollments(active, pageable);
     }
 
     @PreAuthorize("hasRole('STUDENT')")
     @DeleteMapping("/{courseId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void unenroll(@PathVariable Long courseId){
+    public void unenroll(@PathVariable Long courseId) {
         enrollmentService.unenroll(courseId);
     }
 
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @GetMapping("/{id}")
-    public Page<EnrollmentResponse> getByCourse(
+    public PageResponse<EnrollmentResponse> getByCourse(
             @RequestParam(required = false) Boolean active,
             @PageableDefault(size = 5, sort = "id")
-            @PathVariable Long id, Pageable pageable){
+            @PathVariable Long id, Pageable pageable) {
         return enrollmentService.getEnrollmentsByCourse(id, active, pageable);
     }
 }

@@ -45,13 +45,18 @@ public class Course {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    public void onCreate(){
+    public void onCreate() {
         this.createdAt = LocalDateTime.now();
-        if(this.isActive==null) this.isActive = true;
+        if (this.isActive == null) this.isActive = true;
     }
 
     @PreUpdate
-    public void onUpdate(){
+    public void onUpdate() {
         this.updatedAt = LocalDateTime.now();
+    }
+
+    @Transient
+    public Long getAvailableSeats() {
+        return maxSeats - enrolledStudents;
     }
 }

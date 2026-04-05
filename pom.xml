@@ -113,7 +113,6 @@
             <groupId>com.github.ben-manes.caffeine</groupId>
             <artifactId>caffeine</artifactId>
         </dependency>
-
         <!-- Structured logging encoder for Logback -->
         <dependency>
             <groupId>net.logstash.logback</groupId>

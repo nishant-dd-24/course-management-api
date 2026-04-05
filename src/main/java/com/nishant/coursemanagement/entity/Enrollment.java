@@ -42,13 +42,13 @@ public class Enrollment {
     private LocalDateTime updatedAt;
 
     @PrePersist
-    public void onCreate(){
+    public void onCreate() {
         this.enrolledAt = LocalDateTime.now();
     }
 
     @PreUpdate
-    public void onUpdate(){
-        if(!this.isActive && this.completedAt == null){
+    public void onUpdate() {
+        if (!this.isActive && this.completedAt == null) {
             this.completedAt = LocalDateTime.now();
         }
         this.updatedAt = LocalDateTime.now();

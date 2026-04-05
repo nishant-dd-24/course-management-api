@@ -3,6 +3,7 @@ package com.nishant.coursemanagement.exception.security;
 import com.nishant.coursemanagement.exception.response.ErrorResponse;
 import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import com.nishant.coursemanagement.exception.response.ErrorResponseWriter;
+import com.nishant.coursemanagement.util.LogUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -25,8 +26,15 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
     @Override
     public void commence(@NonNull HttpServletRequest request,
                          @NonNull HttpServletResponse response,
-                         @NonNull AuthenticationException ex) throws IOException{
-        log.warn("action=AUTHENTICATION_FAILED path={} message={}", request.getRequestURI(), ex.getMessage());
+                         @NonNull AuthenticationException ex) throws IOException {
+        try {
+            LogUtil.put("action", "AUTHENTICATION_FAILED");
+            LogUtil.put("path", request.getRequestURI());
+            LogUtil.put("message", ex.getMessage());
+            log.warn("Authentication failed");
+        } finally {
+            LogUtil.clear();
+        }
         ErrorResponse error = errorResponseFactory.unauthorized("Authentication required", request);
         errorResponseWriter.write(response, error);
     }

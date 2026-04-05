@@ -3,10 +3,11 @@ package com.nishant.coursemanagement.filter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.nishant.coursemanagement.exception.ErrorCode;
-import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import com.nishant.coursemanagement.exception.response.ErrorResponse;
+import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import com.nishant.coursemanagement.exception.response.ErrorResponseWriter;
 import com.nishant.coursemanagement.security.JwtUtil;
+import com.nishant.coursemanagement.util.LogUtil;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
@@ -24,9 +25,8 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-
-
-record RateLimitContext(String key, int limit) {}
+record RateLimitContext(String key, int limit) {
+}
 
 @Slf4j
 @Component
@@ -94,12 +94,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().replaceAll("/\\d+(?=/|$)", "/{id}");
         String method = request.getMethod();
         int endpointLimit = resolveEndpointLimit(request);
-        if(auth != null && auth.startsWith("Bearer ")) {
+        if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
             try {
                 var role = jwtUtil.extractRole(token);
                 String email = jwtUtil.extractEmail(token);
-                int roleLimit =  switch (role) {
+                int roleLimit = switch (role) {
                     case ADMIN -> ADMIN_LIMIT;
                     case INSTRUCTOR -> INSTRUCTOR_LIMIT;
                     case STUDENT -> STUDENT_LIMIT;
@@ -107,7 +107,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 int finalLimit = Math.min(roleLimit, endpointLimit);
                 return new RateLimitContext(email + ":" + role.name() + ":" + path + ":" + method, finalLimit);
             } catch (Exception e) {
-                log.warn("action=RATE_LIMIT_AUTH_ERROR message={} ip={}", e.getMessage(), request.getRemoteAddr());
+                try {
+                    LogUtil.put("action", "RATE_LIMIT_AUTH_ERROR");
+                    LogUtil.put("message", e.getMessage());
+                    LogUtil.put("ip", request.getRemoteAddr());
+                    log.warn("Rate limit auth error");
+                } finally {
+                    LogUtil.clear();
+                }
                 int finalLimit = Math.min(ANONYMOUS_LIMIT, endpointLimit);
                 return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, finalLimit);
             }
@@ -121,20 +128,54 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
-        log.info("action=RATE_LIMIT_SYSTEM_ACTIVE");
-        log.debug("action=RATE_LIMIT_CHECK, path={}, method={}, ip={}", request.getRequestURI(), request.getMethod(), request.getRemoteAddr());
+        try {
+            LogUtil.put("action", "RATE_LIMIT_SYSTEM_ACTIVE");
+            log.debug("Rate limit system active");
+        } finally {
+            LogUtil.clear();
+        }
+        try {
+            LogUtil.put("action", "RATE_LIMIT_CHECK");
+            LogUtil.put("path", request.getRequestURI());
+            LogUtil.put("method", request.getMethod());
+            LogUtil.put("ip", request.getRemoteAddr());
+            log.debug("Checking rate limit");
+        } finally {
+            LogUtil.clear();
+        }
         RateLimitContext rateLimitContext = resolveContext(request);
-        log.debug("action=RATE_LIMIT_CONTEXT, key={}, limit={}", rateLimitContext.key(), rateLimitContext.limit());
+        try {
+            LogUtil.put("action", "RATE_LIMIT_CONTEXT");
+            LogUtil.put("key", rateLimitContext.key());
+            LogUtil.put("limit", rateLimitContext.limit());
+            log.debug("Resolved rate limit context");
+        } finally {
+            LogUtil.clear();
+        }
         String key = rateLimitContext.key();
         int limit = rateLimitContext.limit();
         Bucket bucket = resolveBucket(key, limit);
         response.setHeader(HEADER_LIMIT, String.valueOf(limit));
         if (bucket.tryConsume(1)) {
-            log.debug("action=RATE_LIMIT_ALLOWED, key={}, remaining={}", key, bucket.getAvailableTokens());
+            try {
+                LogUtil.put("action", "RATE_LIMIT_ALLOWED");
+                LogUtil.put("key", key);
+                LogUtil.put("remaining", bucket.getAvailableTokens());
+                log.debug("Rate limit allowed");
+            } finally {
+                LogUtil.clear();
+            }
             response.setHeader(HEADER_REMAINING, String.valueOf(bucket.getAvailableTokens()));
             filterChain.doFilter(request, response);
         } else {
-            log.warn("action=RATE_LIMIT_EXCEEDED, key={}, limit={}", key, limit);
+            try {
+                LogUtil.put("action", "RATE_LIMIT_EXCEEDED");
+                LogUtil.put("key", key);
+                LogUtil.put("limit", limit);
+                log.warn("Rate limit exceeded");
+            } finally {
+                LogUtil.clear();
+            }
             response.setHeader(HEADER_REMAINING, "0");
 
             long waitTime = bucket.estimateAbilityToConsume(1).getNanosToWaitForRefill();
@@ -145,11 +186,5 @@ public class RateLimitFilter extends OncePerRequestFilter {
             ErrorResponse error = errorResponseFactory.build(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.", ErrorCode.RATE_LIMIT_EXCEEDED, request);
             errorResponseWriter.write(response, error);
         }
-    }
-
-    @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path.startsWith("/users/login") || path.startsWith("/users/register");
     }
 }

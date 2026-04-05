@@ -1,7 +1,6 @@
 package com.nishant.coursemanagement.exception;
 
 
-
 public enum ErrorCode {
     NOT_FOUND,
     ALREADY_EXISTS,
