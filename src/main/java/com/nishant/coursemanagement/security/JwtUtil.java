@@ -2,7 +2,8 @@ package com.nishant.coursemanagement.security;
 
 
 import com.nishant.coursemanagement.entity.Role;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.annotation.Loggable;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -15,6 +16,9 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.Date;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 
 
 @Component
@@ -31,6 +35,12 @@ public class JwtUtil {
         signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    @Loggable(
+            action = "JWT_GENERATE_TOKEN",
+            extras = {"#email", "#role.name()"},
+            extraKeys = {"email", "role"},
+            level = DEBUG
+    )
     public String generateToken(String email, Role role) {
         return Jwts.builder()
                 .subject(email)
@@ -41,26 +51,31 @@ public class JwtUtil {
                 .compact();
     }
 
+    @Loggable(
+            action = "JWT_EXTRACT_EMAIL",
+            level = DEBUG
+    )
     public String extractEmail(String token) {
         return extractAllClaims(token).getSubject();
     }
 
+    @Loggable(
+            action = "JWT_EXTRACT_ROLE",
+            level = DEBUG
+    )
     public Role extractRole(String token) {
         return Role.valueOf(extractAllClaims(token).get("role", String.class));
     }
 
+    @Loggable(
+            action = "JWT_VALIDATE_TOKEN",
+            level = DEBUG
+    )
     public boolean isTokenValid(String token) {
         try {
             return !extractAllClaims(token).getExpiration().before(Date.from(Instant.now()));
         } catch (Exception ex) {
-            try {
-                LogUtil.put("action", "TOKEN_VALIDATION_FAILED");
-                LogUtil.put("message", ex.getMessage());
-                log.warn("Token validation failed");
-            } finally {
-                LogUtil.clear();
-            }
-            log.debug("Token validation failed", ex);
+            LogUtil.log(log, WARN, "JWT_VALIDATE_TOKEN_FAILED", "Token validation failed");
             return false;
         }
     }

@@ -12,7 +12,8 @@ import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.repository.enrollment.EnrollmentRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
 import com.nishant.coursemanagement.service.course.CourseQueryService;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.annotation.Loggable;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -20,6 +21,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.INFO;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.ERROR;
 
 @Service
 @RequiredArgsConstructor
@@ -42,68 +47,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     }
 
     @Override
+    @Loggable(
+            action = "ENROLL",
+            extras = {"#courseId"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true
+    )
     public EnrollmentResponse enroll(Long courseId) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseByIdForUpdate(courseId).orElseThrow(() -> exceptionUtil.notFound("Course not found"));
-        try {
-            LogUtil.put("action", "ENROLL");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("courseId", courseId);
-            log.info("Enrolling in course");
-        } finally {
-            LogUtil.clear();
-        }
 
         Enrollment existingEnrollment = enrollmentQueryService.findByStudentIdAndCourseId(currentUser.getId(), courseId);
         if (existingEnrollment != null) {
-            try {
-                LogUtil.put("action", "ENROLL_DUPLICATE");
-                LogUtil.put("userId", currentUser.getId());
-                LogUtil.put("courseId", courseId);
-                log.warn("Duplicate enrollment attempt");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, WARN, "ENROLL_DUPLICATE", "Duplicate enrollment attempt", "userId", currentUser.getId(), "courseId", courseId);
             if (existingEnrollment.getIsActive()) {
-                try {
-                    LogUtil.put("action", "ENROLL_FAILED");
-                    LogUtil.put("reason", "ALREADY_ENROLLED_ACTIVE");
-                    LogUtil.put("userId", currentUser.getId());
-                    LogUtil.put("courseId", courseId);
-                    log.warn("Already enrolled in active course");
-                } finally {
-                    LogUtil.clear();
-                }
+                LogUtil.log(log, WARN, "ENROLL_FAILED", "Already enrolled in active course", "reason", "ALREADY_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
                 throw exceptionUtil.duplicate("Already enrolled");
             } else {
-                try {
-                    LogUtil.put("action", "REACTIVATE_ENROLLMENT");
-                    LogUtil.put("userId", currentUser.getId());
-                    LogUtil.put("courseId", courseId);
-                    log.info("Reactivating enrollment");
-                } finally {
-                    LogUtil.clear();
-                }
+                LogUtil.log(log, INFO, "REACTIVATE_ENROLLMENT", "Reactivating enrollment", "userId", currentUser.getId(), "courseId", courseId);
                 if (course.getEnrolledStudents() >= course.getMaxSeats()) {
-                    try {
-                        LogUtil.put("action", "ENROLL_FAILED");
-                        LogUtil.put("reason", "COURSE_FULL");
-                        LogUtil.put("userId", currentUser.getId());
-                        LogUtil.put("courseId", courseId);
-                        log.warn("Course is full");
-                    } finally {
-                        LogUtil.clear();
-                    }
+                    LogUtil.log(log, WARN, "ENROLL_FAILED", "Course is full", "reason", "COURSE_FULL", "userId", currentUser.getId(), "courseId", courseId);
                     throw exceptionUtil.badRequest("Course is full");
                 }
-                try {
-                    LogUtil.put("action", "REACTIVATE_ENROLLMENT_SUCCESS");
-                    LogUtil.put("userId", currentUser.getId());
-                    LogUtil.put("courseId", courseId);
-                    log.info("Enrollment reactivated successfully");
-                } finally {
-                    LogUtil.clear();
-                }
+                LogUtil.log(log, INFO, "REACTIVATE_ENROLLMENT_SUCCESS", "Enrollment reactivated successfully", "userId", currentUser.getId(), "courseId", courseId);
                 existingEnrollment.setIsActive(true);
                 Enrollment savedEnrollment = enrollmentRepository.save(existingEnrollment);
                 course.setEnrolledStudents(course.getEnrolledStudents() + 1);
@@ -114,15 +80,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
 
         if (course.getEnrolledStudents() >= course.getMaxSeats()) {
-            try {
-                LogUtil.put("action", "ENROLL_FAILED");
-                LogUtil.put("reason", "COURSE_FULL");
-                LogUtil.put("userId", currentUser.getId());
-                LogUtil.put("courseId", courseId);
-                log.warn("Course is full");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, WARN, "ENROLL_FAILED", "Course is full", "reason", "COURSE_FULL", "userId", currentUser.getId(), "courseId", courseId);
             throw exceptionUtil.badRequest("Course is full");
         }
         Enrollment enrollment = Enrollment.builder()
@@ -130,101 +88,65 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .course(course)
                 .build();
         course.setEnrolledStudents(course.getEnrolledStudents() + 1);
-        try {
-            LogUtil.put("action", "ENROLL_SUCCESS");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("courseId", courseId);
-            log.info("Enrollment successful");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, INFO, "ENROLL_SUCCESS", "Enrollment successful", "userId", currentUser.getId(), "courseId", courseId);
         try {
             enrollment = enrollmentRepository.save(enrollment);
             Course savedCourse = courseRepository.save(course);
             eventPublisher.publishEvent(new EnrollmentChangedEvent(savedCourse.getId()));
         } catch (DataIntegrityViolationException e) {
-            try {
-                LogUtil.put("action", "ENROLL_FAILED");
-                LogUtil.put("reason", "DATA_INTEGRITY_VIOLATION");
-                LogUtil.put("userId", currentUser.getId());
-                LogUtil.put("courseId", courseId);
-                LogUtil.put("error", e.getMessage());
-                log.warn("Data integrity violation during enrollment");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, WARN, "ENROLL_FAILED", "Data integrity violation during enrollment", "reason", "DATA_INTEGRITY_VIOLATION", "userId", currentUser.getId(), "courseId", courseId, "error", e.getMessage());
             throw exceptionUtil.duplicate("Already enrolled");
         }
         return EnrollmentMapper.toResponse(enrollment);
     }
 
     @Override
+    @Loggable(
+            action = "GET_MY_ENROLLMENTS",
+            extras = {"#active"},
+            extraKeys = {"active"},
+            includeCurrentUser = true
+    )
     public PageResponse<EnrollmentResponse> getMyEnrollments(Boolean active, Pageable pageable) {
         User currentUser = authUtil.getCurrentUser();
-        try {
-            LogUtil.put("action", "GET_MY_ENROLLMENTS");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("active", active);
-            log.info("Getting my enrollments");
-        } finally {
-            LogUtil.clear();
-        }
         return enrollmentQueryService.findEnrollments(currentUser.getId(), null, active, pageable);
     }
 
     @Override
+    @Loggable(
+            action = "GET_ENROLLMENTS_BY_COURSE",
+            extras = {"#courseId", "#active"},
+            extraKeys = {"courseId", "active"},
+            includeCurrentUser = true
+    )
     public PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, Boolean active, Pageable pageable) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getActiveCourse(courseId);
         validateCourseOwnership(course, currentUser);
-        try {
-            LogUtil.put("action", "GET_ENROLLMENTS_BY_COURSE");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("courseId", courseId);
-            LogUtil.put("active", active);
-            log.info("Getting enrollments by course");
-        } finally {
-            LogUtil.clear();
-        }
         return enrollmentQueryService.findEnrollments(null, courseId, active, pageable);
     }
 
     @Override
+    @Loggable(
+            action = "UNENROLL",
+            extras = {"#courseId"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true,
+            level = WARN
+    )
     public void unenroll(Long courseId) {
         User currentUser = authUtil.getCurrentUser();
         Enrollment enrollment = enrollmentQueryService.findByStudentIdAndCourseId(currentUser.getId(), courseId);
         if (enrollment == null || !enrollment.getIsActive()) {
-            try {
-                LogUtil.put("action", "UNENROLL_FAILED");
-                LogUtil.put("reason", "NOT_ENROLLED_ACTIVE");
-                LogUtil.put("userId", currentUser.getId());
-                LogUtil.put("courseId", courseId);
-                log.warn("Not enrolled in active course");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, WARN, "UNENROLL_FAILED", "Not enrolled in active course", "reason", "NOT_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
             throw exceptionUtil.notFound("Enrollment not found");
-        }
-        try {
-            LogUtil.put("action", "UNENROLL");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("courseId", courseId);
-            log.warn("Unenrolling from course");
-        } finally {
-            LogUtil.clear();
         }
         enrollment.setIsActive(false);
         enrollmentRepository.save(enrollment);
         Course course = enrollment.getCourse();
         if (course.getEnrolledStudents() > 0) course.setEnrolledStudents(course.getEnrolledStudents() - 1);
         else {
-            try {
-                LogUtil.put("action", "DATA_INCONSISTENCY");
-                LogUtil.put("courseId", course.getId());
-                log.error("Data inconsistency detected");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, ERROR, "DATA_INCONSISTENCY", "Data inconsistency detected", "courseId", course.getId());
         }
         courseRepository.save(course);
         eventPublisher.publishEvent(new EnrollmentChangedEvent(course.getId()));

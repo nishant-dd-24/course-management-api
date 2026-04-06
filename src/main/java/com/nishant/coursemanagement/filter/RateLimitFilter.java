@@ -7,8 +7,11 @@ import com.nishant.coursemanagement.exception.response.ErrorResponse;
 import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
 import com.nishant.coursemanagement.exception.response.ErrorResponseWriter;
 import com.nishant.coursemanagement.security.JwtUtil;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import io.github.bucket4j.Bandwidth;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -107,14 +110,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 int finalLimit = Math.min(roleLimit, endpointLimit);
                 return new RateLimitContext(email + ":" + role.name() + ":" + path + ":" + method, finalLimit);
             } catch (Exception e) {
-                try {
-                    LogUtil.put("action", "RATE_LIMIT_AUTH_ERROR");
-                    LogUtil.put("message", e.getMessage());
-                    LogUtil.put("ip", request.getRemoteAddr());
-                    log.warn("Rate limit auth error");
-                } finally {
-                    LogUtil.clear();
-                }
+                LogUtil.log(log, WARN, "RATE_LIMIT_AUTH_ERROR", "Rate limit auth error", "message", e.getMessage());
                 int finalLimit = Math.min(ANONYMOUS_LIMIT, endpointLimit);
                 return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, finalLimit);
             }
@@ -128,54 +124,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     @NonNull HttpServletResponse response,
                                     @NonNull FilterChain filterChain)
             throws ServletException, IOException {
-        try {
-            LogUtil.put("action", "RATE_LIMIT_SYSTEM_ACTIVE");
-            log.debug("Rate limit system active");
-        } finally {
-            LogUtil.clear();
-        }
-        try {
-            LogUtil.put("action", "RATE_LIMIT_CHECK");
-            LogUtil.put("path", request.getRequestURI());
-            LogUtil.put("method", request.getMethod());
-            LogUtil.put("ip", request.getRemoteAddr());
-            log.debug("Checking rate limit");
-        } finally {
-            LogUtil.clear();
-        }
         RateLimitContext rateLimitContext = resolveContext(request);
-        try {
-            LogUtil.put("action", "RATE_LIMIT_CONTEXT");
-            LogUtil.put("key", rateLimitContext.key());
-            LogUtil.put("limit", rateLimitContext.limit());
-            log.debug("Resolved rate limit context");
-        } finally {
-            LogUtil.clear();
-        }
         String key = rateLimitContext.key();
         int limit = rateLimitContext.limit();
         Bucket bucket = resolveBucket(key, limit);
         response.setHeader(HEADER_LIMIT, String.valueOf(limit));
         if (bucket.tryConsume(1)) {
-            try {
-                LogUtil.put("action", "RATE_LIMIT_ALLOWED");
-                LogUtil.put("key", key);
-                LogUtil.put("remaining", bucket.getAvailableTokens());
-                log.debug("Rate limit allowed");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, DEBUG, "RATE_LIMIT_ALLOWED", "Rate limit allowed", "key", key);
             response.setHeader(HEADER_REMAINING, String.valueOf(bucket.getAvailableTokens()));
             filterChain.doFilter(request, response);
         } else {
-            try {
-                LogUtil.put("action", "RATE_LIMIT_EXCEEDED");
-                LogUtil.put("key", key);
-                LogUtil.put("limit", limit);
-                log.warn("Rate limit exceeded");
-            } finally {
-                LogUtil.clear();
-            }
+            LogUtil.log(log, WARN, "RATE_LIMIT_EXCEEDED", "Rate limit exceeded", "key", key, "limit", limit);
             response.setHeader(HEADER_REMAINING, "0");
 
             long waitTime = bucket.estimateAbilityToConsume(1).getNanosToWaitForRefill();

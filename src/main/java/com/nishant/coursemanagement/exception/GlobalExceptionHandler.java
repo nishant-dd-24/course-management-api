@@ -9,8 +9,11 @@ import com.nishant.coursemanagement.exception.custom.ResourceNotFoundException;
 import com.nishant.coursemanagement.exception.custom.UnauthorizedException;
 import com.nishant.coursemanagement.exception.response.ErrorResponse;
 import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import jakarta.servlet.http.HttpServletRequest;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.ERROR;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
@@ -40,88 +43,53 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleValidationErrors(MethodArgumentNotValidException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "VALIDATION_FAILED");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Validation failed");
-        } finally {
-            LogUtil.clear();
-        }
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getFieldErrors().forEach(
                 error -> errors.put(error.getField(), error.getDefaultMessage())
         );
+        LogUtil.log(log, WARN, "VALIDATION_FAILED", "Validation failed", "fieldCount", errors.size(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, "Validation Failed", ErrorCode.VALIDATION_FAILED, errors, request);
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "ILLEGAL_ARGUMENT");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Illegal argument");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "ILLEGAL_ARGUMENT", "Illegal argument provided", "message", ex.getMessage(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, "Invalid value provided: " + ex.getMessage(), ErrorCode.ILLEGAL_ARGUMENT, request);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleEnumError(HttpMessageNotReadableException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "INVALID_ENUM_VALUE");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Invalid enum value");
-        } finally {
-            LogUtil.clear();
-        }
         String message = "Invalid request";
+        String fieldName = null;
         if (ex.getCause() instanceof InvalidFormatException e) {
-            String fieldName = e.getPath().getFirst().getFieldName();
+            fieldName = e.getPath().getFirst().getFieldName();
             Object invalidValue = e.getValue();
             message = "Invalid value '" + invalidValue + "' for field '" + fieldName + "'. Allowed values: " + Arrays.toString(Role.values());
         }
+        LogUtil.log(log, WARN, "INVALID_ENUM_VALUE", "Invalid enum value provided", "field", fieldName, "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, message, ErrorCode.INVALID_ENUM_VALUE, request);
     }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "RESOURCE_NOT_FOUND");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Resource not found");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "RESOURCE_NOT_FOUND", "Resource not found", "message", ex.getMessage(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.NOT_FOUND, ex.getMessage(), ex.getErrorCode(), request);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleDuplicate(DuplicateResourceException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "DUPLICATE_RESOURCE");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Duplicate resource");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "DUPLICATE_RESOURCE", "Duplicate resource attempted", "message", ex.getMessage(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.CONFLICT, ex.getMessage(), ex.getErrorCode(), request);
     }
 
     @ExceptionHandler({AuthorizationDeniedException.class, AccessDeniedException.class})
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorResponse handleAccessDenied(Exception ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "ACCESS_DENIED");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Access denied");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "ACCESS_DENIED", "Access denied", "exceptionType", ex.getClass().getSimpleName(), "path", request.getRequestURI());
         return errorResponseFactory.forbidden(ex.getMessage(), request);
     }
 
@@ -129,57 +97,29 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({AuthenticationException.class, UnauthorizedException.class})
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "AUTHENTICATION_FAILED");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Authentication failed");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "AUTHENTICATION_FAILED", "Authentication failed", "exceptionType", ex.getClass().getSimpleName(), "path", request.getRequestURI());
         return errorResponseFactory.unauthorized(ex.getMessage(), request);
     }
 
     @ExceptionHandler(CustomBadRequestException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleBadRequest(CustomBadRequestException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "BAD_REQUEST");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("Bad request");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "BAD_REQUEST", "Bad request", "message", ex.getMessage(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, ex.getMessage(), ex.getErrorCode(), request);
     }
 
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleTypeMismatch(MethodArgumentTypeMismatchException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "TYPE_MISMATCH");
-            LogUtil.put("message", ex.getMessage());
-            LogUtil.put("parameter", ex.getName());
-            LogUtil.put("value", String.valueOf(ex.getValue()));
-            log.warn("Type mismatch");
-        } finally {
-            LogUtil.clear();
-        }
         assert ex.getRequiredType() != null;
         String message = "Invalid value '" + ex.getValue() + "' for parameter '" + ex.getName() + "'. Expected type: " + ex.getRequiredType().getSimpleName();
+        LogUtil.log(log, WARN, "TYPE_MISMATCH", "Type mismatch in request parameter", "parameter", ex.getName(), "expectedType", ex.getRequiredType().getSimpleName(), "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.BAD_REQUEST, message, ErrorCode.BAD_REQUEST, request);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
     public ErrorResponse handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "METHOD_NOT_ALLOWED");
-            LogUtil.put("message", ex.getMessage());
-            LogUtil.put("method", ex.getMethod());
-            log.warn("Method not allowed");
-        } finally {
-            LogUtil.clear();
-        }
         String supported = ex.getSupportedHttpMethods() == null
                 ? ""
                 : ex.getSupportedHttpMethods().stream()
@@ -187,32 +127,22 @@ public class GlobalExceptionHandler {
                   .reduce((a, b) -> a + ", " + b)
                   .orElse("");
         String message = "HTTP method '" + ex.getMethod() + "' is not supported for this endpoint. Supported methods: " + supported;
+        LogUtil.log(log, WARN, "METHOD_NOT_ALLOWED", "HTTP method not allowed", "method", ex.getMethod(), "supportedMethods", supported, "path", request.getRequestURI());
         return errorResponseFactory.build(HttpStatus.METHOD_NOT_ALLOWED, message, ErrorCode.BAD_REQUEST, request);
     }
 
     @ExceptionHandler(NoHandlerFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "NO_HANDLER_FOUND");
-            LogUtil.put("message", ex.getMessage());
-            log.warn("No handler found");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "NO_HANDLER_FOUND", "No handler found for request", "method", ex.getHttpMethod(), "path", ex.getRequestURL());
         return errorResponseFactory.build(HttpStatus.NOT_FOUND, "The requested resource was not found", ErrorCode.NOT_FOUND, request);
     }
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorResponse handleRuntimeException(Exception ex, HttpServletRequest request) {
-        try {
-            LogUtil.put("action", "INTERNAL_SERVER_ERROR");
-            LogUtil.put("message", ex.getMessage());
-            log.error("Internal server error", ex);
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, ERROR, "INTERNAL_SERVER_ERROR", "Internal server error occurred", "exceptionType", ex.getClass().getSimpleName(), "message", ex.getMessage(), "path", request.getRequestURI());
+        log.debug("Exception details", ex);
         return errorResponseFactory.build(HttpStatus.INTERNAL_SERVER_ERROR, "Something went wrong", ErrorCode.INTERNAL_ERROR, request);
     }
 }

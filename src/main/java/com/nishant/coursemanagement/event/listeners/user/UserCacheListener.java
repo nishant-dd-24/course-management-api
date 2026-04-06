@@ -1,13 +1,17 @@
 package com.nishant.coursemanagement.event.listeners.user;
 
 import com.nishant.coursemanagement.event.events.user.UserUpdatedEvent;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.annotation.Loggable;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 
 @Component
 @RequiredArgsConstructor
@@ -17,15 +21,15 @@ public class UserCacheListener {
     private final CacheManager cacheManager;
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Loggable(
+            action = "CACHE_EVICT_USER",
+            message = "Evicting user from cache",
+            extras = {"#event.userId()"},
+            extraKeys = {"userId"},
+            level = DEBUG
+    )
     public void handleUserUpdate(UserUpdatedEvent event) {
         Long userId = event.userId();
-        try {
-            LogUtil.put("action", "CACHE_EVICT_USER");
-            LogUtil.put("userId", userId);
-            log.debug("Evicting user from cache");
-        } finally {
-            LogUtil.clear();
-        }
         evict("userById", userId);
         clear("users");
     }
@@ -44,12 +48,6 @@ public class UserCacheListener {
     }
 
     private void logEmptyCache(String cacheName) {
-        try {
-            LogUtil.put("action", "CACHE_NOT_FOUND");
-            LogUtil.put("cacheName", cacheName);
-            log.warn("Cache not found");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, WARN, "CACHE_NOT_FOUND", "Cache not found", "cacheName", cacheName);
     }
 }

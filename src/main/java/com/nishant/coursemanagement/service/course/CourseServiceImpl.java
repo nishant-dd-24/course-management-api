@@ -11,7 +11,8 @@ import com.nishant.coursemanagement.exception.ExceptionUtil;
 import com.nishant.coursemanagement.mapper.CourseMapper;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
-import com.nishant.coursemanagement.util.LogUtil;
+import com.nishant.coursemanagement.log.annotation.Loggable;
+import com.nishant.coursemanagement.log.util.LogUtil;
 import com.nishant.coursemanagement.util.Sanitizer;
 import com.nishant.coursemanagement.util.StringUtil;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+
+import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.INFO;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 
 @Service
 @RequiredArgsConstructor
@@ -42,123 +47,107 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Loggable(
+            action = "CREATE_COURSE",
+            includeCurrentUser = true
+    )
     public CourseResponse createCourse(CourseRequest request) {
         User currentUser = authUtil.getCurrentUser();
         request = Sanitizer.sanitizeCourseRequest(request);
-        try {
-            LogUtil.put("action", "CREATE_COURSE");
-            LogUtil.put("userId", currentUser.getId());
-            log.info("Creating course");
-        } finally {
-            LogUtil.clear();
-        }
         Course course = CourseMapper.toEntity(request, currentUser);
         Course saved = courseRepository.save(course);
-        try {
-            LogUtil.put("action", "CREATE_COURSE_SUCCESS");
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("courseId", course.getId());
-            log.info("Course created successfully");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, INFO, "CREATE_COURSE_SUCCESS", "Course created successfully", "userId", currentUser.getId(), "courseId", saved.getId());
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
         return CourseMapper.toResponse(saved);
     }
 
     @Override
+    @Loggable(
+            action = "GET_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            level = DEBUG
+    )
     public CourseResponse getCourseById(Long id) {
-        try {
-            LogUtil.put("action", "GET_COURSE");
-            LogUtil.put("courseId", id);
-            log.debug("Getting course by ID");
-        } finally {
-            LogUtil.clear();
-        }
         return courseQueryService.getCourseResponseById(id);
     }
 
     @Override
+    @Loggable(
+            action = "GET_ACTIVE_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            level = DEBUG
+    )
     public CourseResponse getActiveCourse(Long id) {
-        try {
-            LogUtil.put("action", "GET_ACTIVE_COURSE");
-            LogUtil.put("courseId", id);
-            log.debug("Getting active course");
-        } finally {
-            LogUtil.clear();
-        }
         return courseQueryService.getActiveCourseResponse(id);
     }
 
     @Override
+    @Loggable(
+            action = "GET_ALL_COURSES",
+            extras = {"#title", "#active", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "active", "instructorId", "pageNumber", "pageSize"},
+            level = DEBUG
+    )
     public PageResponse<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable) {
-        try {
-            LogUtil.put("action", "GET_ALL_COURSES");
-            LogUtil.put("title", title);
-            LogUtil.put("active", active);
-            LogUtil.put("instructorId", instructorId);
-            LogUtil.put("pageNumber", pageable.getPageNumber());
-            LogUtil.put("pageSize", pageable.getPageSize());
-            log.debug("Getting all courses");
-        } finally {
-            LogUtil.clear();
-        }
         title = StringUtil.makeQueryLike(title);
         return courseQueryService.getAllCourses(title, active, instructorId, pageable);
     }
 
     @Override
+    @Loggable(
+            action = "GET_ALL_ACTIVE_COURSES",
+            extras = {"#title", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "instructorId", "pageNumber", "pageSize"},
+            level = DEBUG
+    )
     public PageResponse<CourseResponse> getAllActiveCourses(String title, Long instructorId, Pageable pageable) {
         title = StringUtil.makeQueryLike(title);
         return courseQueryService.getAllCourses(title, true, instructorId, pageable);
     }
 
     @Override
+    @Loggable(
+            action = "GET_MY_COURSES",
+            extras = {"#title", "#active", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "active", "pageNumber", "pageSize"},
+            includeCurrentUser = true,
+            level = DEBUG
+    )
     public PageResponse<CourseResponse> getMyCourses(String title, Boolean active, Pageable pageable) {
-        try {
-            LogUtil.put("action", "GET_MY_COURSES");
-            LogUtil.put("title", title);
-            LogUtil.put("active", active);
-            LogUtil.put("pageNumber", pageable.getPageNumber());
-            LogUtil.put("pageSize", pageable.getPageSize());
-            log.debug("Getting my courses");
-        } finally {
-            LogUtil.clear();
-        }
         title = StringUtil.makeQueryLike(title);
         return courseQueryService.getAllCourses(title, active, authUtil.getCurrentUser().getId(), pageable);
     }
 
     @Override
+    @Loggable(
+            action = "UPDATE_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true
+    )
     public CourseResponse updateCourse(Long id, CourseRequest request) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseById(id);
         validateCourseOwnership(course, currentUser);
         request = Sanitizer.sanitizeCourseRequest(request);
-        try {
-            LogUtil.put("action", "UPDATE_COURSE");
-            LogUtil.put("courseId", id);
-            LogUtil.put("userId", currentUser.getId());
-            log.info("Updating course");
-        } finally {
-            LogUtil.clear();
-        }
         course.setTitle(request.title());
         course.setDescription(request.description());
         course.setMaxSeats(request.maxSeats());
-        try {
-            LogUtil.put("action", "UPDATE_COURSE_SUCCESS");
-            LogUtil.put("courseId", id);
-            LogUtil.put("userId", currentUser.getId());
-            log.info("Course updated successfully");
-        } finally {
-            LogUtil.clear();
-        }
+        LogUtil.log(log, INFO, "UPDATE_COURSE_SUCCESS", "Course updated successfully", "courseId", id, "userId", currentUser.getId());
         Course saved = courseRepository.save(course);
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
         return CourseMapper.toResponse(saved);
     }
 
+    @Loggable(
+            action = "PATCH_COURSE_PAYLOAD",
+            level = DEBUG,
+            message = "Applying patch to course",
+            extras = {"#course.getId()", "#request.title()", "#request.description()", "#request.maxSeats()"},
+            extraKeys = {"courseId", "title", "description", "maxSeats"}
+    )
     private void applyPatch(Course course, CoursePatchRequest request) {
         Optional.ofNullable(request.title())
                 .map(StringUtil::normalize)
@@ -183,28 +172,17 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Loggable(
+            action = "PATCH_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true
+    )
     public CourseResponse patchCourse(Long id, CoursePatchRequest request) {
         validatePatchRequest(request);
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseById(id);
         validateCourseOwnership(course, currentUser);
-        try {
-            LogUtil.put("action", "PATCH_COURSE");
-            LogUtil.put("courseId", id);
-            LogUtil.put("userId", currentUser.getId());
-            log.info("Patching course");
-        } finally {
-            LogUtil.clear();
-        }
-        try {
-            LogUtil.put("action", "PATCH_COURSE_PAYLOAD");
-            LogUtil.put("courseId", id);
-            LogUtil.put("userId", currentUser.getId());
-            LogUtil.put("request", request.toString());
-            log.debug("Applying patch payload");
-        } finally {
-            LogUtil.clear();
-        }
         applyPatch(course, request);
         Course saved = courseRepository.save(course);
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
@@ -212,18 +190,17 @@ public class CourseServiceImpl implements CourseService {
     }
 
     @Override
+    @Loggable(
+            action = "DEACTIVATE_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true,
+            level = WARN
+    )
     public void deactivateCourse(Long id) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseById(id);
         validateCourseOwnership(course, currentUser);
-        try {
-            LogUtil.put("action", "DEACTIVATE_COURSE");
-            LogUtil.put("courseId", id);
-            LogUtil.put("userId", currentUser.getId());
-            log.warn("Deactivating course");
-        } finally {
-            LogUtil.clear();
-        }
         course.setIsActive(false);
         Course saved = courseRepository.save(course);
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));

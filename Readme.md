@@ -24,17 +24,17 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 
 ## Features
 
-| Area               | Details                                                                               |
-|--------------------|---------------------------------------------------------------------------------------|
-| **Auth**           | JWT-based authentication & authorization                                              |
-| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                             |
-| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                               |
-| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                           |
-| **Rate Limiting**  | Role + endpoint-aware in-process token bucket limiting via Bucket4j (single-instance) |
-| **Caching**        | Caffeine-backed in-memory caching with custom key generation (single-instance)        |
-| **Observability**  | Per-request trace IDs, MDC-based structured logging                                   |
-| **Error Handling** | Global exception handler with consistent JSON error responses                         |
-| **Validation**     | Input validation and sanitization across all endpoints                                |
+| Area               | Details                                                                                    |
+|--------------------|--------------------------------------------------------------------------------------------|
+| **Auth**           | JWT-based authentication & authorization                                                   |
+| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                  |
+| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                    |
+| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                |
+| **Rate Limiting**  | Role + endpoint-aware in-process token bucket limiting via Bucket4j (single-instance)      |
+| **Caching**        | Caffeine-backed in-memory caching with custom key generation (single-instance)             |
+| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation |
+| **Error Handling** | Global exception handler with consistent JSON error responses                              |
+| **Validation**     | Input validation and sanitization across all endpoints                                     |
 
 ---
 
@@ -45,6 +45,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **Spring Security** — authentication & authorization
 - **Spring Data JPA** — database access layer
 - **Spring Cache + Caffeine** — in-memory caching
+- **Spring AOP** — annotation-driven logging aspect
 - **JJWT 0.12.7** — JWT generation and validation
 - **Bucket4j** — token bucket rate limiting
 - **PostgreSQL** — relational database
@@ -72,7 +73,11 @@ src/main/java/com/nishant/coursemanagement/
 ├── filter/          # OncePerRequestFilter chain (Trace → RateLimit → JWT)
 ├── cache/           # Custom cache key builders
 ├── event/           # Domain events (events/) and their cache-eviction listeners (listeners/)
-└── util/            # Shared utilities
+├── log/             # Logging infrastructure
+│   ├── annotation/  # @Loggable annotation and LogLevel enum
+│   ├── aspect/      # LoggingAspect — AOP-driven MDC population and log emission
+│   └── util/        # LogUtil — MDC helpers and inline LogUtil.log() for branch-level logs
+└── util/            # Shared utilities (Sanitizer, StringUtil, etc.)
 ```
 
 ### Domain Model
@@ -385,23 +390,59 @@ Because `logstash-logback-encoder` is configured with `includeMdc=true`, the tra
 
 ### Structured JSON logging
 
-Logging is configured via `logback-spring.xml` using `LogstashEncoder`. Every log line is emitted as a JSON object. Below are real examples from a login request:
+Logging is configured via `logback-spring.xml` using `LogstashEncoder`. Every log line is emitted as a JSON object.
+
+### Annotation-driven log instrumentation
+
+Log instrumentation is handled through a dedicated `log` package with three layers:
+
+**`@Loggable` (annotation)** — placed on any method to declare its logging intent. Supported fields:
+
+| Field                | Description                                                                    |
+|----------------------|--------------------------------------------------------------------------------|
+| `action`             | Machine-readable action key written to MDC (e.g. `"DELETE_USER"`)              |
+| `message`            | Human-readable log message; falls back to `action` if blank                    |
+| `level`              | Log level — `DEBUG`, `INFO`, `WARN`, `ERROR` (default: `INFO`)                 |
+| `extras`             | SpEL expressions evaluated against method parameters (e.g. `"#request.email"`) |
+| `extraKeys`          | MDC key names corresponding to each `extras` expression by index               |
+| `includeCurrentUser` | When `true`, resolves the authenticated user and writes `currentUserId` to MDC |
+
+**`LoggingAspect` (AOP)** — intercepts all `@Loggable`-annotated methods. On each invocation it populates MDC from the annotation metadata, calls the method, then adds `status` and `durationMs` before emitting the log line. MDC is always cleared in a `finally` block regardless of outcome.
+
+**`LogUtil.log()` (inline helper)** — used directly inside method bodies for branch-level log points (e.g. duplicate email, password mismatch, role change) that cannot be expressed as a single method-entry annotation. Accepts action, message, and variadic key-value pairs; always clears MDC in its own `finally` block.
+
+Together, the two approaches cover all log points without any `try/finally` boilerplate at the call site:
+
+```java
+// Method-entry log — declared via annotation
+@Loggable(action = "DELETE_USER", level = WARN, includeCurrentUser = true,
+          extras = {"#id"}, extraKeys = {"deletedUserId"})
+public void deleteUser(Long id) { ... }
+
+// Branch-level log — emitted inline
+LogUtil.log(log, WARN, "LOGIN_FAILED", "Login failed",
+            "reason", "INVALID_PASSWORD", "userId", user.getId());
+```
+
+### Log output
+
+Below are real examples from a login request:
 
 ```json
-{"timestamp":"2026-04-05T23:41:25.024365205+05:30","@version":"1","message":"Login attempt","logger":"com.nishant.coursemanagement.service.user.UserServiceImpl","thread":"http-nio-8080-exec-2","level":"INFO","level_value":20000,"traceId":"bb2d5b6d-1fbd-4d0f-88a1-c3605aa6a307","action":"LOGIN_ATTEMPT","userId":"22","clientIp":"0:0:0:0:0:0:0:1","app":"course-management"}
+{"timestamp":"2026-04-06T12:29:54.909189587+05:30","@version":"1","message":"Login successful","logger":"com.nishant.coursemanagement.service.user.UserServiceImpl","thread":"http-nio-8080-exec-1","level":"INFO","level_value":20000,"traceId":"0eaaf0b2-9128-4872-a3a7-a3a6ec9b7459","path":"/users/login","action":"LOGIN_SUCCESS","method":"POST","userId":"22","clientIp":"0:0:0:0:0:0:0:1","app":"course-management"}
 
-{"timestamp":"2026-04-05T23:41:25.087230552+05:30","@version":"1","message":"Login successful","logger":"com.nishant.coursemanagement.service.user.UserServiceImpl","thread":"http-nio-8080-exec-2","level":"INFO","level_value":20000,"traceId":"bb2d5b6d-1fbd-4d0f-88a1-c3605aa6a307","action":"LOGIN_SUCCESS","userId":"22","clientIp":"0:0:0:0:0:0:0:1","app":"course-management"}
+{"timestamp":"2026-04-06T12:29:54.924532492+05:30","@version":"1","message":"LOGIN_ATTEMPT","logger":"com.nishant.coursemanagement.log.aspect.LoggingAspect","thread":"http-nio-8080-exec-1","level":"INFO","level_value":20000,"traceId":"0eaaf0b2-9128-4872-a3a7-a3a6ec9b7459","path":"/users/login","method":"POST","durationMs":"143","clientIp":"0:0:0:0:0:0:0:1","status":"SUCCESS","app":"course-management"}
+
 ```
 
 Key points about the log structure:
 
-- `@version` and `level_value` are added automatically by `LogstashEncoder`
-- Timestamps include nanosecond precision and local timezone offset
-- `traceId`, `method`, `path`, and `clientIp` are set once by `TraceFilter` at the start of every request and are present on all log entries for the full request lifetime
-- MDC fields (`action`, `userId`, `courseId`, etc.) appear as flat top-level keys alongside the standard fields
-- The `app` field is injected globally via `customFields` in `logback-spring.xml` and appears on every log entry
-
-Contextual fields (`action`, `userId`, `courseId`, etc.) are added to MDC explicitly using `LogUtil` before each log call and cleared immediately after in a `finally` block. `LogUtil.clear()` only removes the keys it added — it does not call `MDC.clear()` — so `traceId` and the other request-scoped fields set by `TraceFilter` remain intact for the full duration of the request. `TraceFilter` itself calls `MDC.clear()` in its own `finally` block at the very end as the outermost filter.
+- `action` is the machine-readable key used for querying and alerting; `message` is the human-readable description
+- `status` (`SUCCESS` / `FAILED`) and `durationMs` are added automatically by `LoggingAspect` on every `@Loggable`-annotated method
+- `traceId`, `method`, `path`, and `clientIp` are set once by `TraceFilter` and are present on all log entries for the full request lifetime
+- MDC fields appear as flat top-level keys in the JSON output alongside standard fields
+- The `app` field is injected globally via `customFields` in `logback-spring.xml`
+- `LogUtil.clear()` only removes the keys it added — it does not call `MDC.clear()` — so `traceId` and other request-scoped fields set by `TraceFilter` remain intact. `TraceFilter` itself calls `MDC.clear()` in its own `finally` block at the very end as the outermost filter.
 
 ---
 
@@ -478,6 +519,12 @@ Spring's `Page<T>` serialization is unstable and includes internal fields that c
 ### Why split command and query services?
 
 Each domain area (`UserService` / `UserQueryService`, etc.) separates read and write concerns, making caching and locking strategies easier to apply precisely. Query services are cache-eligible; command services manage eviction.
+
+---
+
+### Why two logging mechanisms (`@Loggable` + `LogUtil.log()`)?
+
+`@Loggable` handles the method-entry log point — the single, unconditional emission that every method has. `LogUtil.log()` handles branch-level log points within the same method body (e.g. duplicate email detected, password mismatch, role change on update) that carry different `action` keys and context depending on the execution path. Using `@Loggable` alone for these would require either one annotation per branch (not possible) or encoding branching logic into SpEL (fragile). The two mechanisms are complementary: the annotation removes all `try/finally` boilerplate at method entry; the helper removes it at every inline call site.
 
 ---
 
