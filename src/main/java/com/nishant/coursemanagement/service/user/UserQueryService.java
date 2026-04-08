@@ -16,8 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
-import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
+import static com.nishant.coursemanagement.log.annotation.LogLevel.*;
 
 @Service
 @Slf4j

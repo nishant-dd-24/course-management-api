@@ -1,7 +1,5 @@
 package com.nishant.coursemanagement.filter;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.nishant.coursemanagement.exception.ErrorCode;
 import com.nishant.coursemanagement.exception.response.ErrorResponse;
 import com.nishant.coursemanagement.exception.response.ErrorResponseFactory;
@@ -9,9 +7,12 @@ import com.nishant.coursemanagement.exception.response.ErrorResponseWriter;
 import com.nishant.coursemanagement.security.JwtUtil;
 import com.nishant.coursemanagement.log.util.LogUtil;
 import io.github.bucket4j.Bandwidth;
+import io.github.bucket4j.BucketConfiguration;
+import io.github.bucket4j.distributed.proxy.ProxyManager;
 
 import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
+
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -49,28 +50,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String HEADER_LIMIT = "X-RateLimit-Limit";
     private static final String HEADER_REMAINING = "X-RateLimit-Remaining";
 
-    private final Cache<String, Bucket> cache = Caffeine.newBuilder()
-            .expireAfterAccess(10, TimeUnit.MINUTES)
-            .maximumSize(10_000)
-            .build();
+    private final ProxyManager<String> proxyManager;
 
     private final ErrorResponseFactory errorResponseFactory;
     private final ErrorResponseWriter errorResponseWriter;
     private final JwtUtil jwtUtil;
 
-    private Bucket createBucket(int limit) {
+    private BucketConfiguration createBucketConfiguration(int limit) {
         Bandwidth bandwidth = Bandwidth.builder()
                 .capacity(limit)
-                .refillGreedy(limit, Duration.ofMinutes(1))
+                .refillIntervally(limit, Duration.ofMinutes(1))
                 .build();
 
-        return Bucket.builder()
+        return BucketConfiguration.builder()
                 .addLimit(bandwidth)
                 .build();
     }
 
     private Bucket resolveBucket(String key, int limit) {
-        return cache.get(key, k -> createBucket(limit));
+        return proxyManager.builder()
+                .build(key, () -> createBucketConfiguration(limit));
     }
 
     private int resolveEndpointLimit(HttpServletRequest request) {

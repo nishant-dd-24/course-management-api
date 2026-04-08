@@ -263,7 +263,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Loggable(
-            action = "LOGIN_ATTEMPT",
+            action = "LOGIN",
             extras = {"#request.email()"},
             extraKeys = {"userEmail"}
     )

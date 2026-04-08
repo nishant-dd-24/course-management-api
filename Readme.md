@@ -1,6 +1,6 @@
 # Course Management API
 
-A well-structured REST API built with **Java 21** and **Spring Boot** for managing users, courses, and enrollments — applying production-oriented patterns including JWT authentication, role-based access control, intelligent caching, in-process rate limiting, and full request observability.
+A well-structured REST API built with **Java 21** and **Spring Boot** for managing users, courses, and enrollments — applying production-oriented patterns including JWT authentication, role-based access control, two-level distributed caching, Redis-backed rate limiting, and full request observability.
 
 ---
 
@@ -24,17 +24,17 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 
 ## Features
 
-| Area               | Details                                                                                    |
-|--------------------|--------------------------------------------------------------------------------------------|
-| **Auth**           | JWT-based authentication & authorization                                                   |
-| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                  |
-| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                    |
-| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                |
-| **Rate Limiting**  | Role + endpoint-aware in-process token bucket limiting via Bucket4j (single-instance)      |
-| **Caching**        | Caffeine-backed in-memory caching with custom key generation (single-instance)             |
-| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation |
-| **Error Handling** | Global exception handler with consistent JSON error responses                              |
-| **Validation**     | Input validation and sanitization across all endpoints                                     |
+| Area               | Details                                                                                                  |
+|--------------------|----------------------------------------------------------------------------------------------------------|
+| **Auth**           | JWT-based authentication & authorization                                                                 |
+| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                |
+| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                  |
+| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                              |
+| **Rate Limiting**  | Role + endpoint-aware distributed token bucket limiting via Bucket4j + Redis (shared across instances)   |
+| **Caching**        | Two-level caching: Caffeine (L1, in-process) + Redis (L2, distributed) with cross-instance eviction sync |
+| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation               |
+| **Error Handling** | Global exception handler with consistent JSON error responses                                            |
+| **Validation**     | Input validation and sanitization across all endpoints                                                   |
 
 ---
 
@@ -44,10 +44,13 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **Spring Boot 4.0.5** — web framework
 - **Spring Security** — authentication & authorization
 - **Spring Data JPA** — database access layer
-- **Spring Cache + Caffeine** — in-memory caching
+- **Spring Cache + Caffeine** — L1 in-memory caching
+- **Spring Cache + Redis** — L2 distributed caching
 - **Spring AOP** — annotation-driven logging aspect
 - **JJWT 0.12.7** — JWT generation and validation
 - **Bucket4j** — token bucket rate limiting
+- **Bucket4j Redis module** — distributed bucket storage via Lettuce `ProxyManager`
+- **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub
 - **PostgreSQL** — relational database
 - **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`)
 - **Logstash Logback Encoder** — structured JSON logging
@@ -71,7 +74,7 @@ src/main/java/com/nishant/coursemanagement/
 ├── exception/       # Custom exceptions, global handler, error response factory
 ├── security/        # JWT utilities, properties, auth helpers
 ├── filter/          # OncePerRequestFilter chain (Trace → RateLimit → JWT)
-├── cache/           # Custom cache key builders
+├── cache/           # CompositeCacheManager, CompositeCache, custom key builders
 ├── event/           # Domain events (events/) and their cache-eviction listeners (listeners/)
 ├── log/             # Logging infrastructure
 │   ├── annotation/  # @Loggable annotation and LogLevel enum
@@ -102,6 +105,7 @@ STUDENT                           │
 - Java 21+
 - Maven 3.8+
 - PostgreSQL
+- Redis
 
 ### 1. Clone
 
@@ -116,6 +120,8 @@ cd course-management-api
 export SPRING_DATASOURCE_PASSWORD=your_db_password
 export JWT_SECRET=your_secret_key_min_32_chars
 export JWT_EXPIRATION_SECONDS=3600
+export SPRING_REDIS_HOST=localhost
+export SPRING_REDIS_PORT=6379
 ```
 
 ### 3. Run
@@ -281,7 +287,7 @@ Client Request
          │
          ▼
 ┌──────────────────────┐
-│  Rate Limit Filter   │  Resolves identity, checks token bucket
+│  Rate Limit Filter   │  Resolves identity, checks distributed token bucket (Redis)
 └────────┬─────────────┘
          │
          ▼
@@ -298,7 +304,7 @@ Client Request
 
 ## Rate Limiting
 
-Rate limiting is implemented using **Bucket4j** (token bucket algorithm) with a **Caffeine** cache for bucket storage. Limits are resolved per-request based on two axes:
+Rate limiting is implemented using **Bucket4j** (token bucket algorithm) backed by a **Redis `ProxyManager<String>`** via Lettuce. Buckets are stored in Redis, making rate limit state shared across all instances and persistent across restarts. Limits are resolved per-request based on two axes:
 
 ### Role-based limits (per minute)
 
@@ -320,6 +326,8 @@ Rate limiting is implemented using **Bucket4j** (token bucket algorithm) with a 
 
 **Identity resolution:** When a valid JWT is present, the bucket key is `email:ROLE:normalizedPath:method`. For unauthenticated requests, the IP address is used as fallback. Path normalization replaces numeric IDs with `{id}` (e.g. `/courses/42` → `/courses/{id}`) to prevent per-ID bucket explosion.
 
+**Cross-instance consistency:** Because buckets live in Redis, a user who exhausts their quota on instance A cannot bypass the limit by hitting instance B. Limits also survive application restarts — there is no reset window on redeploy.
+
 **Response headers:**
 ```
 X-RateLimit-Limit: 20
@@ -331,7 +339,26 @@ Retry-After: 42        ← only on 429 responses
 
 ## Caching
 
-Caching is applied at the **query service layer** using Spring's caching abstraction backed by **Caffeine**. The cache targets read-heavy operations on courses and enrollments.
+Caching is applied at the **query service layer** using Spring's caching abstraction. The implementation uses a **two-level `CompositeCacheManager`**: Caffeine as L1 (in-process, sub-millisecond) and Redis as L2 (distributed, shared across instances). The cache targets read-heavy operations on courses and users.
+
+### Read / write flow
+
+```
+Read:
+  L1 hit → return immediately
+  L1 miss → check L2
+    L2 hit → populate L1, return
+    L2 miss → load from DB, write to both L1 and L2, return
+
+Write:
+  Mutating operations evict the relevant entry from both L1 and L2.
+```
+
+This means the database is only reached when neither cache level has a valid entry.
+
+### Cache stampede protection
+
+`@Cacheable(sync = true)` is set on all cache definitions. Under concurrent load, only one thread computes the value for a given key; all others wait on that result rather than each racing to the database. This is enforced at the `CompositeCache` level so it applies to both L1 and L2 reads.
 
 ### Cache key design
 
@@ -345,16 +372,28 @@ This prevents cache misses from input formatting differences (e.g., `%java%` vs 
 
 ### What is cached
 
-Only **courses** and **users** are cached. Enrollment data is not cached directly, but enrollment mutations (enroll/unenroll) do affect the `enrolledStudents` field on the `Course` entity — so any enrollment change publishes an event that evicts the relevant course cache entries to prevent stale seat counts being served.
+Only **courses** and **users** are cached. Enrollment data is not cached directly, but enrollment mutations (enroll/unenroll) affect the `enrolledStudents` field on the `Course` entity — any enrollment change publishes an event that evicts the relevant course cache entries to prevent stale seat counts being served.
 
 ### Cache eviction
 
 Eviction is handled via **domain events** published on mutating operations (create, update, deactivate, enroll, unenroll), keeping cache state consistent without manual cache management at the controller level.
 
+### Distributed Cache Eviction
+
+L2 (Redis) is inherently consistent — all instances share the same store, so a write on one node is immediately visible to all others. The problem is L1: each instance holds its own Caffeine heap cache, and evicting a key locally does nothing for the other nodes.
+
+This is solved via **Redis Pub/Sub** on the `cache-evict` channel:
+
+1. A mutating operation calls `CompositeCache.evict()` on the local instance — this clears both L1 and L2 immediately.
+2. A `CacheEvictEvent` (carrying `cacheName`, `key`, and an `evictAll` flag for full-cache clears) is published to the `cache-evict` Redis channel.
+3. All other instances have a `RedisCacheListener` subscribed to that channel. On receipt, it evicts the same key (or clears the entire cache if `evictAll=true`) from their local Caffeine L1 only — L2 is already consistent.
+
+Net result: no instance serves a stale in-process entry after a mutation, and the cross-instance invalidation is asynchronous and zero-cost on the write path.
+
 ### Key configuration
 
-- `sync = true` on all cache definitions to prevent **cache stampede** under concurrent load
-- Single global Caffeine config: **10 minute TTL** (write-based expiry), **10,000 max entries**, shared across all cache names
+- **L1 (Caffeine):** 10 minute TTL (write-based expiry), 10,000 max entries, shared across all cache names
+- **L2 (Redis):** TTL matched to L1 (10 minutes); values serialized via `GenericJacksonJsonRedisSerializer` with default typing enabled, so polymorphic types round-trip correctly without requiring explicit type hints at each call site
 
 ---
 
@@ -432,7 +471,6 @@ Below are real examples from a login request:
 {"timestamp":"2026-04-06T12:29:54.909189587+05:30","@version":"1","message":"Login successful","logger":"com.nishant.coursemanagement.service.user.UserServiceImpl","thread":"http-nio-8080-exec-1","level":"INFO","level_value":20000,"traceId":"0eaaf0b2-9128-4872-a3a7-a3a6ec9b7459","path":"/users/login","action":"LOGIN_SUCCESS","method":"POST","userId":"22","clientIp":"0:0:0:0:0:0:0:1","app":"course-management"}
 
 {"timestamp":"2026-04-06T12:29:54.924532492+05:30","@version":"1","message":"LOGIN_ATTEMPT","logger":"com.nishant.coursemanagement.log.aspect.LoggingAspect","thread":"http-nio-8080-exec-1","level":"INFO","level_value":20000,"traceId":"0eaaf0b2-9128-4872-a3a7-a3a6ec9b7459","path":"/users/login","method":"POST","durationMs":"143","clientIp":"0:0:0:0:0:0:0:1","status":"SUCCESS","app":"course-management"}
-
 ```
 
 Key points about the log structure:
@@ -502,11 +540,21 @@ Enrollment is a write operation with a clear contention point — multiple stude
 
 ---
 
-### Why in-process rate limiting over Redis?
+### Why Redis-backed distributed rate limiting?
 
-Bucket4j + Caffeine gives zero-latency limit checks with no external dependency. For a single-instance deployment, this is the right default. The design is structured so that switching to a Redis-backed `ProxyManager` requires only a configuration change.
+Bucket4j's `LettuceBasedProxyManager<String>` stores all bucket state in Redis via a `StatefulRedisConnection<String, byte[]>`, keeping it entirely out of the JVM heap. Rate limits are shared across every instance — a user who exhausts their quota on one node cannot bypass it by hitting another. Limits also survive application restarts, eliminating the window where a restart was a de facto quota reset.
 
-**Trade-off:** Rate limit state resets on application restart and is not shared across instances.
+**Trade-off:** Each rate limit check now involves a Redis round-trip. In practice this is negligible given Redis's sub-millisecond latency, and the correctness guarantees are essential for any horizontally scaled deployment.
+
+---
+
+### Why two-level caching (Caffeine + Redis)?
+
+Caffeine alone doesn't survive horizontal scaling — each instance has its own heap cache, so a write on one node leaves stale data on every other. Redis alone is correct but adds a network hop to every cache hit.
+
+The composite approach gets both: L1 (Caffeine) serves the hot path at nanosecond latency; L2 (Redis) provides the shared ground truth and populates L1 on a miss. Writes go to both levels simultaneously. Cross-instance L1 invalidation is handled via Redis Pub/Sub (see [Distributed Cache Eviction](#distributed-cache-eviction)): the `RedisCacheListener` receives eviction events and clears only the local Caffeine cache — L2 is already the shared source of truth and needs no cross-instance notification.
+
+**Trade-off:** Operational complexity (two cache backends, an eviction pub/sub channel). The payoff is read latency that stays in-process for warm caches, combined with consistency guarantees that hold under horizontal scaling.
 
 ---
 
@@ -537,13 +585,11 @@ The following are needed before this project could be considered production-read
 - [ ] Advanced input validation and edge-case hardening
 
 **Operability**
-- [ ] Dockerization + `docker-compose` setup
+- [ ] Dockerization + `docker-compose` setup (including Redis and PostgreSQL)
 - [ ] Prometheus metrics integration (Actuator already active)
 - [ ] Swagger / OpenAPI documentation
 
-**Scalability** *(current in-memory solutions break under horizontal scaling)*
-- [ ] Distributed rate limiting via Redis + Bucket4j `ProxyManager`
-- [ ] Distributed caching (Caffeine → Redis or two-level)
+**Scalability**
 - [ ] Database indexing and query analysis for larger datasets
 
 **Observability**
