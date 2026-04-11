@@ -18,6 +18,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - [Observability](#observability)
 - [Error Handling](#error-handling)
 - [Design Decisions](#design-decisions)
+- [Testing](#testing)
 - [Roadmap](#roadmap)
 
 ---
@@ -35,6 +36,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 | **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation               |
 | **Error Handling** | Global exception handler with consistent JSON error responses                                            |
 | **Validation**     | Input validation and sanitization across all endpoints                                                   |
+| **Testing**        | Comprehensive service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseServiceTest` utilities and a Redis-free test profile |
 
 ---
 
@@ -64,7 +66,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 ```
 src/main/java/com/nishant/coursemanagement/
 │
-├── config/          # Security, Jackson, cache configuration
+├── config/          # Security, cache, Redis, and rate-limiting configuration
 ├── controller/      # REST endpoints (users, courses, enrollments)
 ├── service/         # Business logic (split into command + query services)
 ├── repository/      # Spring Data JPA repositories
@@ -576,12 +578,79 @@ Each domain area (`UserService` / `UserQueryService`, etc.) separates read and w
 
 ---
 
+### Why unit test the service layer?
+
+The service layer is where the core invariants live — seat-count correctness under contention, role-gated mutations, and event-driven cache eviction sequencing. These are the behaviors most likely to regress and the hardest to isolate if tested only through end-to-end flows.
+
+Unit tests with mocked repositories and event publishers keep those checks deterministic and fast:
+
+- **Event-driven architecture:** mutation paths assert domain-event publication directly (`UserUpdatedEvent`, `CourseUpdatedEvent`, `EnrollmentChangedEvent`), which is the cache-eviction trigger.
+- **Caching complexity:** eviction behavior is verified at the contract boundary (event published or not) without requiring Redis/Caffeine in unit scope.
+- **Concurrency guarantees:** enrollment seat-boundary logic (full course, reactivation, zero-floor decrement) is validated in service tests while DB lock mechanics remain an integration concern.
+- **Role enforcement:** ADMIN-only role mutation paths are asserted explicitly in update and patch flows.
+
+The result is a fast suite that validates business invariants independently of infrastructure availability.
+
+---
+
+## Testing
+
+### What is covered
+
+Service-layer unit tests cover all three core command services:
+
+- `CourseService` — create, update, patch, deactivate; ownership validation (non-owner rejection); event publishing on mutations
+- `UserService` — create (including inactive-user reactivation), update, patch (including `patchMe` delegation), deactivate; password change; role-update ADMIN guard; event publishing
+- `EnrollmentService` — enroll (new and reactivation paths), unenroll; seat availability and boundary conditions (zero seats, at-capacity); duplicate enrollment guard; `DataIntegrityViolationException` safety net; event publishing
+
+### Test structure
+
+All test classes extend a shared `BaseServiceTest`, which provides:
+
+- Pre-configured Mockito mocks for the three cross-cutting dependencies — `AuthUtil`, `ApplicationEventPublisher`, and `ExceptionUtil`; each test class provides its own repository mocks
+- `buildUser(Long id)` and `buildUser(Long id, Role role)` fixture builders shared across all three test classes
+- Shared helpers: `captureEvent`, `captureEvents`, `verifyNoEventPublished`, `mockCurrentUser`, `mockNotFoundException`, `mockBadRequestException`
+
+This keeps individual test classes focused on behavior assertions rather than setup noise.
+
+### What is verified
+
+Each test suite covers three categories:
+
+- **Repository interactions** — that the correct repository methods are called with the correct arguments (e.g. `save`, `existsByEmail`, `findByEmail`)
+- **Event publishing** — that domain events are published after mutating operations, which is the trigger for cache eviction
+- **Edge cases and failure scenarios** — not-found lookups, seat exhaustion, duplicate enrollments, unauthorized role changes, and other rejection paths
+
+### Test configuration
+
+The project includes a dedicated `application-test.properties` for test defaults. It uses:
+
+- **H2 in-memory database** — no PostgreSQL instance required
+- **Simple cache manager** — no Redis or Caffeine dependency; caching infrastructure is excluded from unit test scope
+- **JWT fallback secret** — `app.jwt.secret=${JWT_SECRET:test-secret-secret-secret-key}`, so no environment variable is required to run tests locally
+
+### How to run
+
+```bash
+./mvnw test
+```
+
+To run tests for a specific service:
+
+```bash
+./mvnw test -Dtest=CourseServiceUnitTests
+./mvnw test -Dtest=UserServiceUnitTests
+./mvnw test -Dtest=EnrollmentServiceUnitTests
+```
+
+---
+
 ## Roadmap
 
 The following are needed before this project could be considered production-ready:
 
 **Correctness & reliability**
-- [ ] Unit and integration test coverage
+- [ ] Integration test coverage
 - [ ] Advanced input validation and edge-case hardening
 
 **Operability**

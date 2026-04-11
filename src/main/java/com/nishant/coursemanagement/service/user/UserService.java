@@ -16,7 +16,7 @@ public interface UserService {
 
     UserResponse patchUser(UserPatchRequest request, Long id);
 
-    void deleteUser(Long id);
+    void deactivateUser(Long id);
 
     UserResponse getMe();
 
@@ -24,7 +24,7 @@ public interface UserService {
 
     UserResponse patchMe(UserPatchRequest request);
 
-    void deleteMe();
+    void deactivateMe();
 
     PasswordChangeResponse changePassword(NewPasswordRequest request);
 

@@ -62,7 +62,7 @@ public class UserController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
+        userService.deactivateUser(id);
     }
 
     @GetMapping("/my")
@@ -83,7 +83,7 @@ public class UserController {
     @DeleteMapping("/my")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteMe() {
-        userService.deleteMe();
+        userService.deactivateMe();
     }
 
     @PostMapping("/my/change-password")

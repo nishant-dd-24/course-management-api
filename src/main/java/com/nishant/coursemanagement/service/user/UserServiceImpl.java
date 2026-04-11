@@ -59,20 +59,17 @@ public class UserServiceImpl implements UserService {
     public UserResponse createUser(UserRequest request) {
         request = Sanitizer.sanitizeUserRequest(request);
         if (userRepository.existsByEmail(request.email())) {
-            LogUtil.log(log, WARN, "CREATE_USER_DUPLICATE", "Duplicate user creation attempt","email", request.email());
             User user = userRepository.findByEmail(request.email())
                     .orElseThrow(() -> exceptionUtil.notFound("User not found"));
             if (!user.getIsActive()) {
                 LogUtil.log(log, INFO, "REACTIVATE_USER", "Reactivating user","email", request.email());
                 return reactivateUser(user);
             }
-            LogUtil.log(log, WARN, "CREATE_USER_FAILED", "User creation failed","reason", "EMAIL_EXISTS", "email", request.email());
             throw exceptionUtil.duplicate("User already exists");
         }
         User user = UserMapper.toEntity(request);
         user.setPassword(passwordEncoder.encode(request.password()));
         User saved = userRepository.save(user);
-        LogUtil.log(log, INFO, "CREATE_USER_SUCCESS", "User created successfully","userId", saved.getId(), "email", saved.getEmail());
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
     }
@@ -107,12 +104,10 @@ public class UserServiceImpl implements UserService {
         }
         User user = authUtil.getCurrentUser();
         if (!passwordEncoder.matches(request.oldPassword(), user.getPassword())) {
-            LogUtil.log(log, WARN, "CHANGE_PASSWORD_FAILED","Password change failed", "reason", "INVALID_OLD_PASSWORD", "userId", user.getId());
             throw exceptionUtil.accessDenied("Invalid current password");
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         User saved = userRepository.save(user);
-        LogUtil.log(log, INFO, "CHANGE_PASSWORD_SUCCESS", "Password changed successfully", "userId", user.getId());
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return new PasswordChangeResponse("Password successfully changed");
     }
@@ -139,7 +134,7 @@ public class UserServiceImpl implements UserService {
             extras = {"#id"},
             extraKeys = {"deletedUserId"}
     )
-    public void deleteUser(Long id) {
+    public void deactivateUser(Long id) {
         User user = userQueryService.getUser(id);
         user.setIsActive(false);
         User saved = userRepository.save(user);
@@ -152,8 +147,8 @@ public class UserServiceImpl implements UserService {
             level = WARN,
             includeCurrentUser = true
     )
-    public void deleteMe() {
-        deleteUser(authUtil.getCurrentUser().getId());
+    public void deactivateMe() {
+        deactivateUser(authUtil.getCurrentUser().getId());
     }
 
     @Override
@@ -167,7 +162,6 @@ public class UserServiceImpl implements UserService {
         User user = userQueryService.getUser(id);
         request = Sanitizer.sanitizeUserUpdateRequest(request);
         if (!user.getEmail().equals(request.email()) && userRepository.existsByEmail(request.email())) {
-            LogUtil.log(log, WARN, "UPDATE_USER_FAILED", "User update failed", "reason", "EMAIL_EXISTS", "userId", id, "email", request.email());
             throw exceptionUtil.duplicate("Email already exists");
         }
         user.setName(request.name());
@@ -176,7 +170,6 @@ public class UserServiceImpl implements UserService {
             LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
             user.setRole(request.role());
         }
-        LogUtil.log(log, INFO, "UPDATE_USER_SUCCESS", "User updated successfully", "userId", id);
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
@@ -207,7 +200,6 @@ public class UserServiceImpl implements UserService {
 
                 .ifPresent(email -> {
                     if (!user.getEmail().equals(email) && userRepository.existsByEmail(email)) {
-                        LogUtil.log(log, WARN, "PATCH_USER_FAILED", "Patch user failed", "reason", "EMAIL_EXISTS", "userId", user.getId(), "email", email);
                         throw exceptionUtil.duplicate("Email already exists");
                     }
                     user.setEmail(email);
@@ -215,7 +207,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private void validatePatchRequest(UserPatchRequest request) {
-        if (request.name() == null && request.email() == null) {
+        if (request.name() == null && request.email() == null && request.role() == null) {
             throw exceptionUtil.badRequest("At least one field must be provided for patching");
         }
         if (StringUtil.isBlankButNotNull(request.name())) {
@@ -235,10 +227,11 @@ public class UserServiceImpl implements UserService {
             extraKeys = {"userId"}
     )
     public UserResponse patchUser(UserPatchRequest request, Long id) {
+        User currentUser = authUtil.getCurrentUser();
         validatePatchRequest(request);
         User user = userQueryService.getUser(id);
         applyPatch(user, request);
-        if (request.role() != null && user.getRole() != request.role()) {
+        if (currentUser.getRole()==Role.ADMIN && request.role() != null && user.getRole() != request.role()) {
             LogUtil.log(log, WARN, "PATCH_USER_ROLE_CHANGE", "Patching user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
             user.setRole(request.role());
         }
@@ -253,12 +246,7 @@ public class UserServiceImpl implements UserService {
             includeCurrentUser = true
     )
     public UserResponse patchMe(UserPatchRequest request) {
-        validatePatchRequest(request);
-        User user = authUtil.getCurrentUser();
-        applyPatch(user, request);
-        User saved = userRepository.save(user);
-        eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
-        return UserMapper.toResponse(saved);
+        return patchUser(request, authUtil.getCurrentUser().getId());
     }
 
     @Override
@@ -271,14 +259,11 @@ public class UserServiceImpl implements UserService {
         request = Sanitizer.sanitizeLoginRequest(request);
         User user = userQueryService.getUser(request.email());
         if (!user.getIsActive()) {
-            LogUtil.log(log, WARN, "LOGIN_FAILED", "Login failed", "reason", "INACTIVE_USER", "userId", user.getId());
             throw exceptionUtil.unauthorized("Invalid credentials");
         }
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
-            LogUtil.log(log, WARN, "LOGIN_FAILED", "Login failed", "reason", "INVALID_PASSWORD", "userId", user.getId());
             throw exceptionUtil.unauthorized("Invalid credentials");
         }
-        LogUtil.log(log, INFO, "LOGIN_SUCCESS", "Login successful", "userId", user.getId());
         String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
         UserResponse response = UserMapper.toResponse(user);
         long expiresIn = jwtProperties.getExpirationSeconds();

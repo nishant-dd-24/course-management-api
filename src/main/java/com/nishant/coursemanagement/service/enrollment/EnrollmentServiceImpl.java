@@ -22,7 +22,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import static com.nishant.coursemanagement.log.annotation.LogLevel.INFO;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.ERROR;
 
@@ -59,17 +58,14 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         Enrollment existingEnrollment = enrollmentQueryService.findByStudentIdAndCourseId(currentUser.getId(), courseId);
         if (existingEnrollment != null) {
-            LogUtil.log(log, WARN, "ENROLL_DUPLICATE", "Duplicate enrollment attempt", "userId", currentUser.getId(), "courseId", courseId);
             if (existingEnrollment.getIsActive()) {
                 LogUtil.log(log, WARN, "ENROLL_FAILED", "Already enrolled in active course", "reason", "ALREADY_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
                 throw exceptionUtil.duplicate("Already enrolled");
             } else {
-                LogUtil.log(log, INFO, "REACTIVATE_ENROLLMENT", "Reactivating enrollment", "userId", currentUser.getId(), "courseId", courseId);
                 if (course.getEnrolledStudents() >= course.getMaxSeats()) {
                     LogUtil.log(log, WARN, "ENROLL_FAILED", "Course is full", "reason", "COURSE_FULL", "userId", currentUser.getId(), "courseId", courseId);
                     throw exceptionUtil.badRequest("Course is full");
                 }
-                LogUtil.log(log, INFO, "REACTIVATE_ENROLLMENT_SUCCESS", "Enrollment reactivated successfully", "userId", currentUser.getId(), "courseId", courseId);
                 existingEnrollment.setIsActive(true);
                 Enrollment savedEnrollment = enrollmentRepository.save(existingEnrollment);
                 course.setEnrolledStudents(course.getEnrolledStudents() + 1);
@@ -88,7 +84,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .course(course)
                 .build();
         course.setEnrolledStudents(course.getEnrolledStudents() + 1);
-        LogUtil.log(log, INFO, "ENROLL_SUCCESS", "Enrollment successful", "userId", currentUser.getId(), "courseId", courseId);
         try {
             enrollment = enrollmentRepository.save(enrollment);
             Course savedCourse = courseRepository.save(course);

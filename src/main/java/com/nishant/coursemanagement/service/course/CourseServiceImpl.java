@@ -12,7 +12,6 @@ import com.nishant.coursemanagement.mapper.CourseMapper;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
 import com.nishant.coursemanagement.log.annotation.Loggable;
-import com.nishant.coursemanagement.log.util.LogUtil;
 import com.nishant.coursemanagement.util.Sanitizer;
 import com.nishant.coursemanagement.util.StringUtil;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Optional;
 
 import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
-import static com.nishant.coursemanagement.log.annotation.LogLevel.INFO;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 
 @Service
@@ -56,7 +54,6 @@ public class CourseServiceImpl implements CourseService {
         request = Sanitizer.sanitizeCourseRequest(request);
         Course course = CourseMapper.toEntity(request, currentUser);
         Course saved = courseRepository.save(course);
-        LogUtil.log(log, INFO, "CREATE_COURSE_SUCCESS", "Course created successfully", "userId", currentUser.getId(), "courseId", saved.getId());
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
         return CourseMapper.toResponse(saved);
     }
@@ -135,7 +132,6 @@ public class CourseServiceImpl implements CourseService {
         course.setTitle(request.title());
         course.setDescription(request.description());
         course.setMaxSeats(request.maxSeats());
-        LogUtil.log(log, INFO, "UPDATE_COURSE_SUCCESS", "Course updated successfully", "courseId", id, "userId", currentUser.getId());
         Course saved = courseRepository.save(course);
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
         return CourseMapper.toResponse(saved);

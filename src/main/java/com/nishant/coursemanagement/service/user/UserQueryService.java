@@ -43,7 +43,7 @@ public class UserQueryService {
             level = DEBUG
     )
     public User getUser(String email) {
-        return userRepository.findByEmail(email).orElseThrow(() -> exceptionUtil.notFound("Invalid credentials"));
+        return userRepository.findByEmail(email).orElseThrow(() -> exceptionUtil.notFound("User not found"));
     }
 
     @Cacheable(sync = true, value = "userById", key = "#id")
