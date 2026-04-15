@@ -34,6 +34,15 @@ public class CourseFlowIT extends BaseIntegrationTest {
 
     private static final String NEW_TITLE = "New Course Title";
     private static final String NEW_DESCRIPTION = "New Course Description";
+    private static final String DESCRIPTION_TEXT = "Description";
+    private static final String PAGE_PARAM = "page";
+    private static final String SIZE_PARAM = "size";
+    private static final String PAGE_0 = "0";
+    private static final String SIZE_5 = "5";
+    private static final String TITLE_PARAM = "title";
+    private static final String INSTRUCTOR_ID_PARAM = "instructorId";
+    private static final String ACTIVE_PARAM = "active";
+    private static final String TRUE_VALUE = "true";
 
     private CourseRequest courseRequest;
     private CourseUpdateRequest courseUpdateRequest;
@@ -165,13 +174,13 @@ public class CourseFlowIT extends BaseIntegrationTest {
         void shouldGetCoursesWithPagination() throws Exception {
             setAdminToken();
             for (int i = 0; i < COURSES_TO_BE_CREATED; i++) {
-                buildCourse("Course " + i, "Description " + i, MAX_SEATS, testUser);
+                buildCourse("Course " + i, DESCRIPTION_TEXT + " " + i, MAX_SEATS, testUser);
             }
 
             mockMvc.perform(get(ROOT_ENDPOINT)
                             .with(auth())
-                            .param("page", "0")
-                            .param("size", "5"))
+                            .param(PAGE_PARAM, PAGE_0)
+                            .param(SIZE_PARAM, SIZE_5))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(5))
                     .andExpect(jsonPath("$.pageNumber").value(0))
@@ -193,9 +202,9 @@ public class CourseFlowIT extends BaseIntegrationTest {
             courseRepository.saveAndFlush(dummyCourse);
 
             mockMvc.perform(get(ROOT_ENDPOINT)
-                            .param("title", matchingTitle)
-                            .param("instructorId", String.valueOf(testUser.getId()))
-                            .param("active", "true")
+                            .param(TITLE_PARAM, matchingTitle)
+                            .param(INSTRUCTOR_ID_PARAM, String.valueOf(testUser.getId()))
+                            .param(ACTIVE_PARAM, TRUE_VALUE)
                             .with(auth()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
@@ -227,16 +236,16 @@ public class CourseFlowIT extends BaseIntegrationTest {
 
         @Test
         void shouldGetAvailableCourses_whenNonAdmin() throws Exception {
-            buildCourse("Public Active 1", "Description", MAX_SEATS, testUser);
-            buildCourse("Public Active 2", "Description", MAX_SEATS, testUser);
-            buildCourse("Public Inactive", "Description", MAX_SEATS, testUser);
+            buildCourse("Public Active 1", DESCRIPTION_TEXT, MAX_SEATS, testUser);
+            buildCourse("Public Active 2", DESCRIPTION_TEXT, MAX_SEATS, testUser);
+            buildCourse("Public Inactive", DESCRIPTION_TEXT, MAX_SEATS, testUser);
             dummyCourse.setIsActive(false);
             courseRepository.saveAndFlush(dummyCourse);
 
             mockMvc.perform(get(ACTIVE_ENDPOINT)
                             .with(auth())
-                            .param("page", "0")
-                            .param("size", "5"))
+                            .param(PAGE_PARAM, PAGE_0)
+                            .param(SIZE_PARAM, SIZE_5))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(lessThanOrEqualTo(5)))
                     .andExpect(jsonPath("$.content[*].isActive").value(everyItem(equalTo(true))));
@@ -245,10 +254,10 @@ public class CourseFlowIT extends BaseIntegrationTest {
         @Test
         void shouldGetOwnCourses_whenInstructor() throws Exception {
             setInstructorToken();
-            buildCourse("My Course 1", "Description", MAX_SEATS, testUser);
-            buildCourse("My Course 2", "Description", MAX_SEATS, testUser);
+            buildCourse("My Course 1", DESCRIPTION_TEXT, MAX_SEATS, testUser);
+            buildCourse("My Course 2", DESCRIPTION_TEXT, MAX_SEATS, testUser);
             buildUser(DUMMY_NAME, DUMMY_EMAIL, INSTRUCTOR);
-            buildCourse("Other Instructor Course", "Description", MAX_SEATS, dummyUser);
+            buildCourse("Other Instructor Course", DESCRIPTION_TEXT, MAX_SEATS, dummyUser);
 
             long expectedCount = courseRepository.findCourses(
                     null,

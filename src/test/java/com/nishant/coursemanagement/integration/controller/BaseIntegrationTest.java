@@ -1,8 +1,10 @@
 package com.nishant.coursemanagement.integration.controller;
 
 import com.nishant.coursemanagement.entity.Course;
+import com.nishant.coursemanagement.entity.Enrollment;
 import com.nishant.coursemanagement.entity.Role;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
+import com.nishant.coursemanagement.repository.enrollment.EnrollmentRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -37,7 +39,10 @@ public abstract class BaseIntegrationTest {
     protected UserRepository userRepository;
 
     @Autowired
-    private CourseRepository courseRepository;
+    protected CourseRepository courseRepository;
+
+    @Autowired
+    protected EnrollmentRepository enrollmentRepository;
 
     @Autowired
     protected JwtUtil jwtUtil;
@@ -71,6 +76,7 @@ public abstract class BaseIntegrationTest {
                 .apply(springSecurity())
                 .build();
 
+        enrollmentRepository.deleteAll();
         courseRepository.deleteAll();
         userRepository.deleteAll();
 
@@ -180,5 +186,28 @@ public abstract class BaseIntegrationTest {
                         .isActive(true)
                         .build()
         );
+    }
+
+    protected Enrollment buildEnrollment() {
+        return buildEnrollment(testUser, testCourse, true);
+    }
+
+    protected Enrollment buildEnrollment(User student, Course course) {
+        return buildEnrollment(student, course, true);
+    }
+
+    protected Enrollment buildEnrollment(User student, Course course, Boolean isActive) {
+        return enrollmentRepository.saveAndFlush(
+                Enrollment.builder()
+                        .student(student)
+                        .course(course)
+                        .isActive(isActive)
+                        .build()
+        );
+    }
+
+    protected Enrollment findEnrollment(Long studentId, Long courseId) {
+        return enrollmentRepository.findByStudentIdAndCourseId(studentId, courseId)
+                .orElse(null);
     }
 }
