@@ -37,7 +37,7 @@ public class LoggingAspect {
             logAtLevel(loggable.level(), loggable.action(), loggable.message());
             return result;
         } catch (Throwable ex) {
-            LogUtil.put("status", "FAIL");
+            LogUtil.put("status", "FAILED");
             LogUtil.put("durationMs",
                     (System.nanoTime() - start) / 1_000_000);
             LogUtil.put("error", ex.getMessage());

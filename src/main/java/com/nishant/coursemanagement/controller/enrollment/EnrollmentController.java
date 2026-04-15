@@ -41,8 +41,8 @@ public class EnrollmentController {
     @GetMapping("/{id}")
     public PageResponse<EnrollmentResponse> getByCourse(
             @RequestParam(required = false) Boolean active,
-            @PageableDefault(size = 5, sort = "id")
-            @PathVariable Long id, Pageable pageable) {
+            @PathVariable Long id,
+            @PageableDefault(size = 5, sort = "id") Pageable pageable) {
         return enrollmentService.getEnrollmentsByCourse(id, active, pageable);
     }
 }

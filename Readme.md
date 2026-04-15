@@ -36,7 +36,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 | **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation               |
 | **Error Handling** | Global exception handler with consistent JSON error responses                                            |
 | **Validation**     | Input validation and sanitization across all endpoints                                                   |
-| **Testing**        | Comprehensive service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseServiceTest` utilities and a Redis-free test profile |
+| **Testing**        | Service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseServiceTest`; full MockMvc integration tests for all three controllers with role-based, pagination, filtering, security, and concurrency scenarios |
 
 ---
 
@@ -54,7 +54,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **Bucket4j Redis module** — distributed bucket storage via Lettuce `ProxyManager`
 - **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub
 - **PostgreSQL** — relational database
-- **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`)
+- **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`) (authentication required via JWT)
 - **Logstash Logback Encoder** — structured JSON logging
 - **Lombok** — boilerplate reduction
 - **Maven** — build tool
@@ -138,6 +138,8 @@ The API starts at `http://localhost:8080`.
 
 ## API Reference
 
+All endpoints except `/users/login` and `/users/register` require authentication via JWT.
+
 All protected endpoints require the header:
 ```
 Authorization: Bearer <jwt_token>
@@ -157,6 +159,16 @@ Authorization: Bearer <jwt_token>
 {
   "email": "user@example.com",
   "password": "yourpassword"
+}
+```
+
+**Register request:**
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "yourpassword",
+  "role": "STUDENT"
 }
 ```
 
@@ -210,12 +222,12 @@ Authorization: Bearer <jwt_token>
 | Method   | Endpoint                     | Role       | Description                                                    |
 |----------|------------------------------|------------|----------------------------------------------------------------|
 | `POST`   | `/courses`                   | INSTRUCTOR | Create a new course                                            |
-| `GET`    | `/courses`                   | ADMIN      | List all courses (paginated, filterable)                       |
+| `GET`    | `/courses`                   | ADMIN      | ADMIN only — list all courses (paginated, filterable)                       |
 | `GET`    | `/courses/{id}`              | ADMIN      | Get any course by ID                                           |
-| `GET`    | `/courses/active/{id}`       | Public     | Get an active course by ID                                     |
-| `GET`    | `/courses/available-courses` | Public     | Browse all active courses                                      |
+| `GET`    | `/courses/active/{id}`       | Authenticated (no role restriction) | Get an active course by ID                                     |
+| `GET`    | `/courses/active`            | Authenticated (no role restriction) | Browse all active courses                                      |
 | `GET`    | `/courses/my`                | INSTRUCTOR | Get own courses                                                |
-| `PUT`    | `/courses/{id}`              | INSTRUCTOR | Full update of a course (title, description, maxSeats)         |
+| `PUT`    | `/courses/{id}`              | INSTRUCTOR | Updates title and description; `maxSeats` is updated only if provided (`null` retains existing value) |
 | `PATCH`  | `/courses/{id}`              | INSTRUCTOR | Partial update — any of: title, description, maxSeats (min: 1) |
 | `DELETE` | `/courses/{id}`              | INSTRUCTOR | Deactivate a course (soft delete)                              |
 
@@ -230,6 +242,10 @@ Authorization: Bearer <jwt_token>
 | `maxSeats`       | Total seat capacity                                     |
 | `availableSeats` | Computed: `maxSeats - enrolledStudents` (not persisted) |
 | `isActive`       | Whether the course is active                            |
+
+**Course request note:**
+
+- `maxSeats` defaults to `20` if not provided in `POST /courses`
 
 **Query parameters for `GET /courses`:**
 
@@ -250,6 +266,14 @@ Authorization: Bearer <jwt_token>
 | `DELETE` | `/enrollments/{courseId}` | STUDENT    | Unenroll from a course       |
 | `GET`    | `/enrollments/my`         | STUDENT    | Get own enrollments          |
 | `GET`    | `/enrollments/{id}`       | INSTRUCTOR | Get enrollments for a course |
+
+**Enrollment response fields:**
+
+| Field       | Description             |
+|-------------|-------------------------|
+| `id`        | Enrollment ID           |
+| `studentId` | Enrolled student ID     |
+| `courseId`  | Enrolled course ID      |
 
 ---
 
@@ -326,7 +350,7 @@ Rate limiting is implemented using **Bucket4j** (token bucket algorithm) backed 
 | `GET /courses/**`      | 100   |
 | All others             | 20    |
 
-**Identity resolution:** When a valid JWT is present, the bucket key is `email:ROLE:normalizedPath:method`. For unauthenticated requests, the IP address is used as fallback. Path normalization replaces numeric IDs with `{id}` (e.g. `/courses/42` → `/courses/{id}`) to prevent per-ID bucket explosion.
+**Identity resolution:** When a valid JWT is present, the bucket key is `userId:ROLE:normalizedPath:method`. For unauthenticated requests, the IP address is used as fallback. Path normalization replaces numeric IDs with `{id}` (e.g. `/courses/42` → `/courses/{id}`) to prevent per-ID bucket explosion.
 
 **Cross-instance consistency:** Because buckets live in Redis, a user who exhausts their quota on instance A cannot bypass the limit by hitting instance B. Limits also survive application restarts — there is no reset window on redeploy.
 
@@ -414,6 +438,15 @@ Note: the `isActive = true` filter means attempting to enroll in an inactive cou
 A `DataIntegrityViolationException` catch provides an additional safety net at the database level for any duplicate enrollment attempts.
 
 **Trade-off:** Slightly reduced throughput under high concurrent enrollment on the same course, in exchange for strict seat-count correctness.
+
+### Concurrency validation
+
+The concurrency guarantee is verified by `EnrollmentFlowIT` using two real concurrent-request tests (`ConcurrencyTests`). Each test spawns 5 threads via `ExecutorService`, holds them behind a `CountDownLatch` until all are ready, then releases them simultaneously against a course with 2 available seats:
+
+- `shouldAllowOnlyLimitedEnrollments_whenConcurrentRequests` — asserts that exactly 2 requests succeed, that the active enrollment count in the database equals 2, and that `enrolledStudents` on the course reflects the correct value
+- `shouldRejectExcessEnrollments_whenConcurrentRequests` — asserts that exactly 2 requests succeed and that all remaining requests receive a 4xx error
+
+These tests run against H2 with real JPA pessimistic locking in place, giving confidence that the seat-boundary guarantee holds under actual concurrent load.
 
 ---
 
@@ -534,6 +567,15 @@ The `GlobalExceptionHandler` covers the equivalent cases that do reach the contr
 
 ## Design Decisions
 
+### Why use `userId` instead of email as JWT subject?
+
+- `userId` is immutable — email can be changed by the user or an admin, making it an unreliable long-lived identity claim
+- Using email as the subject creates a window where a token issued before an email change still resolves to the wrong identity
+- `userId` maps directly to the primary key, so token validation never requires a secondary email lookup
+- Avoids any stale-identity issue during update flows where email and the in-flight token would temporarily be out of sync
+
+---
+
 ### Why pessimistic over optimistic locking?
 
 Enrollment is a write operation with a clear contention point — multiple students racing to claim the last seat in a course. Optimistic locking would require retry logic on version conflicts, adding complexity and unpredictable latency under load. Pessimistic locking (`PESSIMISTIC_WRITE`) gives a simpler, stronger guarantee by holding the row lock for the duration of the transaction.
@@ -572,6 +614,14 @@ Each domain area (`UserService` / `UserQueryService`, etc.) separates read and w
 
 ---
 
+### Why separate `CourseRequest` and `CourseUpdateRequest` DTOs?
+
+`POST /courses` (create) and `PUT /courses/{id}` (full update) look identical at the field level but carry different semantic intent. Sharing a single DTO would mean the same validation constraints apply to both operations and that any future divergence (e.g., making `maxSeats` immutable after creation) requires adding conditional logic inside a shared class.
+
+Using `CourseUpdateRequest` for the PUT path makes the contract explicit, keeps validation requirements decoupled, and ensures that adding a create-only or update-only field is a non-breaking change to the other operation.
+
+---
+
 ### Why two logging mechanisms (`@Loggable` + `LogUtil.log()`)?
 
 `@Loggable` handles the method-entry log point — the single, unconditional emission that every method has. `LogUtil.log()` handles branch-level log points within the same method body (e.g. duplicate email detected, password mismatch, role change on update) that carry different `action` keys and context depending on the execution path. Using `@Loggable` alone for these would require either one annotation per branch (not possible) or encoding branching logic into SpEL (fragile). The two mechanisms are complementary: the annotation removes all `try/finally` boilerplate at method entry; the helper removes it at every inline call site.
@@ -597,37 +647,58 @@ The result is a fast suite that validates business invariants independently of i
 
 ### What is covered
 
-Service-layer unit tests cover all three core command services:
+**Service-layer unit tests** cover all three core command services:
 
-- `CourseService` — create, update, patch, deactivate; ownership validation (non-owner rejection); event publishing on mutations
-- `UserService` — create (including inactive-user reactivation), update, patch (including `patchMe` delegation), deactivate; password change; role-update ADMIN guard; event publishing
-- `EnrollmentService` — enroll (new and reactivation paths), unenroll; seat availability and boundary conditions (zero seats, at-capacity); duplicate enrollment guard; `DataIntegrityViolationException` safety net; event publishing
+- `CourseUnitTests` — create, update, patch, deactivate; ownership validation (non-owner rejection); event publishing on mutations
+- `UserUnitTests` — create (including inactive-user reactivation), update, patch (including `patchMe` delegation), deactivate; password change; role-update ADMIN guard; event publishing
+- `EnrollmentUnitTests` — enroll (new and reactivation paths), unenroll; seat availability and boundary conditions (zero seats, at-capacity); duplicate enrollment guard; `DataIntegrityViolationException` safety net; event publishing
+
+**Controller-layer integration tests** (MockMvc-based, with a real `SpringBootTest` context) cover all three controllers end-to-end:
+
+- `UserFlowIT` — registration, login (success, wrong password, inactive user), role-based access control, paginated listing, filtering by name/email/active, full update, partial update (with role-guard on non-admin paths), password change, and account deactivation
+- `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructor/active filtering with pagination, and soft deactivation
+- `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multi-threaded concurrency validation (see below)
 
 ### Test structure
 
-All test classes extend a shared `BaseServiceTest`, which provides:
+**Unit tests** extend a shared `BaseUnitTest`, which provides:
 
-- Pre-configured Mockito mocks for the three cross-cutting dependencies — `AuthUtil`, `ApplicationEventPublisher`, and `ExceptionUtil`; each test class provides its own repository mocks
+- Pre-configured Mockito mocks for `AuthUtil`, `ApplicationEventPublisher`, and `ExceptionUtil`; each test class provides its own repository mocks
 - `buildUser(Long id)` and `buildUser(Long id, Role role)` fixture builders shared across all three test classes
 - Shared helpers: `captureEvent`, `captureEvents`, `verifyNoEventPublished`, `mockCurrentUser`, `mockNotFoundException`, `mockBadRequestException`
+
+**Integration tests** extend a shared `BaseIntegrationTest`, which provides:
+
+- A `MockMvc` instance configured with full Spring Security support
+- Database reset and seed fixtures before each test: a `testUser` (INSTRUCTOR), a `testCourse`, and a pre-generated JWT token
+- Role-switching helpers: `setStudentToken()`, `setInstructorToken()`, `setAdminToken()`
+- Entity builders: `buildUser()`, `buildCourse()`, `buildEnrollment()`, and `buildThisManyUsers()` for pagination setup
+- `toJson()` serialization and a reusable `auth()` `RequestPostProcessor`
 
 This keeps individual test classes focused on behavior assertions rather than setup noise.
 
 ### What is verified
 
-Each test suite covers three categories:
+Each unit test suite covers three categories:
 
 - **Repository interactions** — that the correct repository methods are called with the correct arguments (e.g. `save`, `existsByEmail`, `findByEmail`)
 - **Event publishing** — that domain events are published after mutating operations, which is the trigger for cache eviction
 - **Edge cases and failure scenarios** — not-found lookups, seat exhaustion, duplicate enrollments, unauthorized role changes, and other rejection paths
+
+Integration tests additionally verify:
+
+- **HTTP-level behavior** — correct status codes, response shapes, and field values across all endpoints
+- **Role enforcement at the HTTP boundary** — `401 Unauthorized`, `403 Forbidden`, and ownership-based `404 Not Found` for non-owner mutations
+- **Pagination and filtering** — correct `content.length()`, `totalElements`, `pageNumber`, and `pageSize` fields; filter combinations (title + instructorId + active, name + email + active)
+- **Concurrency correctness** — see [Concurrency Control](#concurrency-control)
 
 ### Test configuration
 
 The project includes a dedicated `application-test.properties` for test defaults. It uses:
 
 - **H2 in-memory database** — no PostgreSQL instance required
-- **Simple cache manager** — no Redis or Caffeine dependency; caching infrastructure is excluded from unit test scope
-- **JWT fallback secret** — `app.jwt.secret=${JWT_SECRET:test-secret-secret-secret-key}`, so no environment variable is required to run tests locally
+- **Caching disabled** (`spring.cache.type=none`) — no cache manager is registered at all; caching infrastructure is fully excluded from the test context
+- **JWT fallback secret** — `app.jwt.secret=${JWT_SECRET:dGVzdC1zZWNyZXQtc2VjcmV0LXNlY3JldC1rZXktMTIzNDU2}` (base64-encoded), so no environment variable is required to run tests locally. Expiration also defaults via `app.jwt.expiration-seconds=${JWT_EXPIRATION_SECONDS:3600}`
 
 ### How to run
 
@@ -635,12 +706,15 @@ The project includes a dedicated `application-test.properties` for test defaults
 ./mvnw test
 ```
 
-To run tests for a specific service:
+To run tests for a specific class:
 
 ```bash
-./mvnw test -Dtest=CourseServiceUnitTests
-./mvnw test -Dtest=UserServiceUnitTests
-./mvnw test -Dtest=EnrollmentServiceUnitTests
+./mvnw test -Dtest=CourseUnitTests
+./mvnw test -Dtest=UserUnitTests
+./mvnw test -Dtest=EnrollmentUnitTests
+./mvnw test -Dtest=CourseFlowIT
+./mvnw test -Dtest=UserFlowIT
+./mvnw test -Dtest=EnrollmentFlowIT
 ```
 
 ---
@@ -650,7 +724,6 @@ To run tests for a specific service:
 The following are needed before this project could be considered production-ready:
 
 **Correctness & reliability**
-- [ ] Integration test coverage
 - [ ] Advanced input validation and edge-case hardening
 
 **Operability**
