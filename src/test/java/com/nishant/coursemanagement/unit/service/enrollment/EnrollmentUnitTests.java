@@ -1,4 +1,4 @@
-package com.nishant.coursemanagement.service.enrollment;
+package com.nishant.coursemanagement.unit.service.enrollment;
 
 import com.nishant.coursemanagement.dto.enrollment.EnrollmentResponse;
 import com.nishant.coursemanagement.entity.Course;
@@ -11,7 +11,9 @@ import com.nishant.coursemanagement.exception.custom.DuplicateResourceException;
 import com.nishant.coursemanagement.exception.custom.ResourceNotFoundException;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.repository.enrollment.EnrollmentRepository;
-import com.nishant.coursemanagement.service.BaseServiceTest;
+import com.nishant.coursemanagement.service.enrollment.EnrollmentQueryService;
+import com.nishant.coursemanagement.service.enrollment.EnrollmentServiceImpl;
+import com.nishant.coursemanagement.unit.service.BaseUnitTest;
 import com.nishant.coursemanagement.service.course.CourseQueryService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Nested;
@@ -35,7 +37,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-public class EnrollmentServiceUnitTests extends BaseServiceTest {
+public class EnrollmentUnitTests extends BaseUnitTest {
 
     @Mock
     private EnrollmentRepository enrollmentRepository;

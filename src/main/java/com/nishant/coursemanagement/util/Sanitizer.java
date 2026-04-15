@@ -1,6 +1,7 @@
 package com.nishant.coursemanagement.util;
 
 import com.nishant.coursemanagement.dto.course.CourseRequest;
+import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.dto.user.LoginRequest;
 import com.nishant.coursemanagement.dto.user.UserRequest;
 import com.nishant.coursemanagement.dto.user.UserUpdateRequest;
@@ -44,6 +45,17 @@ public class Sanitizer {
         String normalizedDescription = StringUtil.normalize(request.description());
 
         return CourseRequest.builder()
+                .title(normalizedTitle)
+                .description(normalizedDescription)
+                .maxSeats(request.maxSeats())
+                .build();
+    }
+
+    public static CourseUpdateRequest sanitizeCourseUpdateRequest(CourseUpdateRequest request) {
+        String normalizedTitle = StringUtil.normalize(request.title());
+        String normalizedDescription = StringUtil.normalize(request.description());
+
+        return CourseUpdateRequest.builder()
                 .title(normalizedTitle)
                 .description(normalizedDescription)
                 .maxSeats(request.maxSeats())

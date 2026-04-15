@@ -4,6 +4,7 @@ import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
 import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseResponse;
+import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.service.course.CourseService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class CourseController {
         return courseService.getActiveCourse(id);
     }
 
-    @GetMapping("/available-courses")
+    @GetMapping("/active")
     public PageResponse<CourseResponse> allActiveCourses(
             @RequestParam(required = false) String title,
             @RequestParam(required = false) Long instructorId,
@@ -67,7 +68,7 @@ public class CourseController {
 
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @PutMapping("/{id}")
-    public CourseResponse update(@PathVariable Long id, @Valid @RequestBody CourseRequest request) {
+    public CourseResponse update(@PathVariable Long id, @Valid @RequestBody CourseUpdateRequest request) {
         return courseService.updateCourse(id, request);
     }
 

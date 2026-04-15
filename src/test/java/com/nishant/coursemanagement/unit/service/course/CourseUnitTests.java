@@ -1,15 +1,18 @@
-package com.nishant.coursemanagement.service.course;
+package com.nishant.coursemanagement.unit.service.course;
 
 import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
 import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseResponse;
+import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.course.CourseUpdatedEvent;
 import com.nishant.coursemanagement.exception.custom.CustomBadRequestException;
 import com.nishant.coursemanagement.exception.custom.ResourceNotFoundException;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
-import com.nishant.coursemanagement.service.BaseServiceTest;
+import com.nishant.coursemanagement.service.course.CourseQueryService;
+import com.nishant.coursemanagement.service.course.CourseServiceImpl;
+import com.nishant.coursemanagement.unit.service.BaseUnitTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-class CourseServiceUnitTests extends BaseServiceTest {
+class CourseUnitTests extends BaseUnitTest {
 
     @Mock
     private CourseRepository courseRepository;
@@ -61,6 +64,14 @@ class CourseServiceUnitTests extends BaseServiceTest {
 
     private CourseRequest buildTestCourseRequest(){
         return CourseRequest.builder()
+                .title(NEW_RAW_TITLE)
+                .description(NEW_RAW_DESCRIPTION)
+                .maxSeats(20L)
+                .build();
+    }
+
+    private CourseUpdateRequest buildTestCourseUpdateRequest(){
+        return CourseUpdateRequest.builder()
                 .title(NEW_RAW_TITLE)
                 .description(NEW_RAW_DESCRIPTION)
                 .maxSeats(20L)
@@ -125,7 +136,7 @@ class CourseServiceUnitTests extends BaseServiceTest {
     class UpdateCourseTests{
         @Test
         void shouldUpdateCourseSuccessfully() {
-            CourseRequest request = buildTestCourseRequest();
+            CourseUpdateRequest request = buildTestCourseUpdateRequest();
             mockValidUserAndCourse();
             when(courseRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
             CourseResponse response = courseService.updateCourse(courseId, request);
@@ -144,7 +155,7 @@ class CourseServiceUnitTests extends BaseServiceTest {
             currentUser.setId(2L);
             mockValidUserAndCourse();
             mockNotFoundException(NOT_FOUND);
-            ResourceNotFoundException ex =  assertThrows(ResourceNotFoundException.class, () -> courseService.updateCourse(courseId, buildTestCourseRequest()));
+            ResourceNotFoundException ex =  assertThrows(ResourceNotFoundException.class, () -> courseService.updateCourse(courseId, buildTestCourseUpdateRequest()));
             assertEquals(NOT_FOUND, ex.getMessage());
             verifyNoSideEffects();
         }
@@ -154,7 +165,7 @@ class CourseServiceUnitTests extends BaseServiceTest {
             when(authUtil.getCurrentUser()).thenReturn(currentUser);
             when(courseQueryService.getCourseById(courseId))
                     .thenThrow(new ResourceNotFoundException(NOT_FOUND));
-            assertThrows(ResourceNotFoundException.class, () -> courseService.updateCourse(courseId, buildTestCourseRequest()));
+            assertThrows(ResourceNotFoundException.class, () -> courseService.updateCourse(courseId, buildTestCourseUpdateRequest()));
             verifyNoSideEffects();
         }
 
@@ -162,7 +173,7 @@ class CourseServiceUnitTests extends BaseServiceTest {
         void shouldThrowException_whenRepositoryFails() {
             mockValidUserAndCourse();
             when(courseRepository.save(any())).thenThrow(new RuntimeException(DB_FAILURE));
-            assertThrows(RuntimeException.class, () -> courseService.updateCourse(courseId, buildTestCourseRequest()));
+            assertThrows(RuntimeException.class, () -> courseService.updateCourse(courseId, buildTestCourseUpdateRequest()));
             verify(eventPublisher, never()).publishEvent(any());
         }
     }

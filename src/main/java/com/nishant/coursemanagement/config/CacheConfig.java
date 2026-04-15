@@ -7,6 +7,7 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -17,6 +18,7 @@ import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import java.time.Duration;
 
 @Configuration
+@Profile("!test")
 public class CacheConfig {
 
     private static final Duration CACHE_TTL = Duration.ofMinutes(10);

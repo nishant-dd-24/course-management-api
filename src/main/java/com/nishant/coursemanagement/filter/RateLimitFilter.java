@@ -21,6 +21,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -35,6 +36,7 @@ record RateLimitContext(String key, int limit) {
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@Profile("!test")
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int ADMIN_LIMIT = 100;
@@ -99,15 +101,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
             try {
-                var role = jwtUtil.extractRole(token);
-                String email = jwtUtil.extractEmail(token);
+                var role = jwtUtil.extractAuthorities(token);
+                long id = jwtUtil.extractSubject(token);
                 int roleLimit = switch (role) {
                     case ADMIN -> ADMIN_LIMIT;
                     case INSTRUCTOR -> INSTRUCTOR_LIMIT;
                     case STUDENT -> STUDENT_LIMIT;
                 };
                 int finalLimit = Math.min(roleLimit, endpointLimit);
-                return new RateLimitContext(email + ":" + role.name() + ":" + path + ":" + method, finalLimit);
+                return new RateLimitContext(id + ":" + role.name() + ":" + path + ":" + method, finalLimit);
             } catch (Exception e) {
                 LogUtil.log(log, WARN, "RATE_LIMIT_AUTH_ERROR", "Rate limit auth error", "message", e.getMessage());
                 int finalLimit = Math.min(ANONYMOUS_LIMIT, endpointLimit);

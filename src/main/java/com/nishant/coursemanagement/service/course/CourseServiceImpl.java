@@ -4,6 +4,7 @@ import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
 import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseResponse;
+import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.course.CourseUpdatedEvent;
@@ -124,14 +125,14 @@ public class CourseServiceImpl implements CourseService {
             extraKeys = {"courseId"},
             includeCurrentUser = true
     )
-    public CourseResponse updateCourse(Long id, CourseRequest request) {
+    public CourseResponse updateCourse(Long id, CourseUpdateRequest request) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseById(id);
         validateCourseOwnership(course, currentUser);
-        request = Sanitizer.sanitizeCourseRequest(request);
+        request = Sanitizer.sanitizeCourseUpdateRequest(request);
         course.setTitle(request.title());
         course.setDescription(request.description());
-        course.setMaxSeats(request.maxSeats());
+        if(request.maxSeats()!=null)course.setMaxSeats(request.maxSeats());
         Course saved = courseRepository.save(course);
         eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
         return CourseMapper.toResponse(saved);

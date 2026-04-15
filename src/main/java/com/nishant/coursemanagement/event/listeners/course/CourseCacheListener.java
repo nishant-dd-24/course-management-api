@@ -9,6 +9,7 @@ import com.nishant.coursemanagement.log.util.LogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
@@ -16,6 +17,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.*;
 
 @Component
+@Profile("!test")
 @RequiredArgsConstructor
 @Slf4j
 public class CourseCacheListener {

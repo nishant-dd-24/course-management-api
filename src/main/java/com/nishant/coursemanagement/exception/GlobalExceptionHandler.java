@@ -28,8 +28,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.security.core.AuthenticationException;
 
-import javax.naming.AuthenticationException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -96,7 +96,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler({AuthenticationException.class, UnauthorizedException.class})
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
-    public ErrorResponse handleAuthenticationException(AuthenticationException ex, HttpServletRequest request) {
+    public ErrorResponse handleAuthenticationException(Exception ex, HttpServletRequest request) {
         LogUtil.log(log, WARN, "AUTHENTICATION_FAILED", "Authentication failed", "exceptionType", ex.getClass().getSimpleName(), "path", request.getRequestURI());
         return errorResponseFactory.unauthorized(ex.getMessage(), request);
     }

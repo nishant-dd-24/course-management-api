@@ -120,7 +120,7 @@ cd course-management-api
 
 ```bash
 export SPRING_DATASOURCE_PASSWORD=your_db_password
-export JWT_SECRET=your_secret_key_min_32_chars
+export JWT_SECRET=$(echo -n "your_secret_key_min_32_chars" | base64)
 export JWT_EXPIRATION_SECONDS=3600
 export SPRING_REDIS_HOST=localhost
 export SPRING_REDIS_PORT=6379

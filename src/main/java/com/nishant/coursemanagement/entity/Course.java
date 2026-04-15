@@ -57,6 +57,7 @@ public class Course {
 
     @Transient
     public Long getAvailableSeats() {
+        if (maxSeats == null || enrolledStudents == null) return 0L;
         return maxSeats - enrolledStudents;
     }
 }

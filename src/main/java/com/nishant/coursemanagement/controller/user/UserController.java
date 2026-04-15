@@ -26,12 +26,14 @@ public class UserController {
     }
 
     @PostMapping("/login")
+    @ResponseStatus(HttpStatus.OK)
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return userService.login(request);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
+    @ResponseStatus(HttpStatus.OK)
     public PageResponse<UserResponse> getAllUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String email,
@@ -42,18 +44,21 @@ public class UserController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse getUserById(@PathVariable Long id) {
         return userService.getUserById(id);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse updateUser(@Valid @RequestBody UserUpdateRequest request, @PathVariable Long id) {
         return userService.updateUser(request, id);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse patchUser(@RequestBody UserPatchRequest request, @PathVariable Long id) {
         return userService.patchUser(request, id);
     }
@@ -66,16 +71,19 @@ public class UserController {
     }
 
     @GetMapping("/my")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse getMe() {
         return userService.getMe();
     }
 
     @PutMapping("/my")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse updateMe(@Valid @RequestBody UserUpdateRequest request) {
         return userService.updateMe(request);
     }
 
     @PatchMapping("/my")
+    @ResponseStatus(HttpStatus.OK)
     public UserResponse patchMe(@RequestBody UserPatchRequest request) {
         return userService.patchMe(request);
     }
@@ -87,6 +95,7 @@ public class UserController {
     }
 
     @PostMapping("/my/change-password")
+    @ResponseStatus(HttpStatus.OK)
     public PasswordChangeResponse passwordChange(@Valid @RequestBody NewPasswordRequest request) {
         return userService.changePassword(request);
     }

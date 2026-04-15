@@ -15,10 +15,10 @@ public class AuthUtil {
     public final UserRepository userRepository;
 
     public User getCurrentUser() {
-        String email = Objects.requireNonNull(SecurityContextHolder.getContext()
+        long id = Long.parseLong(Objects.requireNonNull(SecurityContextHolder.getContext()
                         .getAuthentication())
-                .getName();
-        return userRepository.findByEmail(email)
+                .getName());
+        return userRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 }

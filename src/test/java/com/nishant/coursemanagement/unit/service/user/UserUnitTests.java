@@ -1,4 +1,4 @@
-package com.nishant.coursemanagement.service.user;
+package com.nishant.coursemanagement.unit.service.user;
 
 import com.nishant.coursemanagement.dto.user.LoginRequest;
 import com.nishant.coursemanagement.dto.user.LoginResponse;
@@ -18,7 +18,9 @@ import com.nishant.coursemanagement.exception.custom.UnauthorizedException;
 import com.nishant.coursemanagement.repository.user.UserRepository;
 import com.nishant.coursemanagement.security.JwtProperties;
 import com.nishant.coursemanagement.security.JwtUtil;
-import com.nishant.coursemanagement.service.BaseServiceTest;
+import com.nishant.coursemanagement.service.user.UserQueryService;
+import com.nishant.coursemanagement.service.user.UserServiceImpl;
+import com.nishant.coursemanagement.unit.service.BaseUnitTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,7 +28,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -39,7 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
-public class UserServiceUnitTests extends BaseServiceTest {
+public class UserUnitTests extends BaseUnitTest {
 
     @Mock
     private UserRepository userRepository;
@@ -268,18 +269,18 @@ public class UserServiceUnitTests extends BaseServiceTest {
         }
 
         @Test
-        void shouldThrowAccessDenied_whenOldPasswordIncorrect() {
+        void shouldThrowUnauthorized_whenOldPasswordIncorrect() {
             User currentUser = buildUser(1L);
             currentUser.setPassword(ENCODED_PASSWORD);
             NewPasswordRequest request = buildChangePasswordRequest(INVALID_OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
 
             when(authUtil.getCurrentUser()).thenReturn(currentUser);
             when(passwordEncoder.matches(INVALID_OLD_PASSWORD, ENCODED_PASSWORD)).thenReturn(false);
-            when(exceptionUtil.accessDenied(INVALID_CURRENT_PASSWORD))
-                    .thenReturn(new AccessDeniedException(INVALID_CURRENT_PASSWORD));
+            when(exceptionUtil.unauthorized(INVALID_CURRENT_PASSWORD))
+                    .thenReturn(new UnauthorizedException(INVALID_CURRENT_PASSWORD));
 
-            AccessDeniedException ex = assertThrows(
-                    AccessDeniedException.class,
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
                     () -> userService.changePassword(request)
             );
 
@@ -863,7 +864,7 @@ public class UserServiceUnitTests extends BaseServiceTest {
 
             when(userQueryService.getUser(EMAIL)).thenReturn(user);
             when(passwordEncoder.matches(LOGIN_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
-            when(jwtUtil.generateToken(EMAIL, STUDENT)).thenReturn(TOKEN);
+            when(jwtUtil.generateToken(user.getId(), STUDENT)).thenReturn(TOKEN);
             when(jwtProperties.getExpirationSeconds()).thenReturn(EXPIRATION_SECONDS);
 
             LoginResponse response = userService.login(request);
@@ -877,7 +878,7 @@ public class UserServiceUnitTests extends BaseServiceTest {
             assertEquals(STUDENT.name(), response.user().role());
             verify(userQueryService).getUser(EMAIL);
             verify(passwordEncoder).matches(LOGIN_PASSWORD, ENCODED_PASSWORD);
-            verify(jwtUtil).generateToken(EMAIL, STUDENT);
+            verify(jwtUtil).generateToken(user.getId(), STUDENT);
             verify(jwtProperties).getExpirationSeconds();
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
@@ -913,7 +914,7 @@ public class UserServiceUnitTests extends BaseServiceTest {
 
             when(userQueryService.getUser(EMAIL)).thenReturn(user);
             when(passwordEncoder.matches(LOGIN_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
-            when(jwtUtil.generateToken(EMAIL, STUDENT)).thenReturn(TOKEN);
+            when(jwtUtil.generateToken(user.getId(), STUDENT)).thenReturn(TOKEN);
             when(jwtProperties.getExpirationSeconds()).thenReturn(EXPIRATION_SECONDS);
 
             LoginResponse response = userService.login(request);
@@ -928,7 +929,7 @@ public class UserServiceUnitTests extends BaseServiceTest {
             verify(jwtProperties).getExpirationSeconds();
             verify(userQueryService).getUser(EMAIL);
             verify(passwordEncoder).matches(LOGIN_PASSWORD, ENCODED_PASSWORD);
-            verify(jwtUtil).generateToken(EMAIL, STUDENT);
+            verify(jwtUtil).generateToken(user.getId(), STUDENT);
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
             verifyNoInteractions(authUtil);

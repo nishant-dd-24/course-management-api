@@ -104,7 +104,7 @@ public class UserServiceImpl implements UserService {
         }
         User user = authUtil.getCurrentUser();
         if (!passwordEncoder.matches(request.oldPassword(), user.getPassword())) {
-            throw exceptionUtil.accessDenied("Invalid current password");
+            throw exceptionUtil.unauthorized("Invalid current password");
         }
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         User saved = userRepository.save(user);
@@ -164,12 +164,13 @@ public class UserServiceImpl implements UserService {
         if (!user.getEmail().equals(request.email()) && userRepository.existsByEmail(request.email())) {
             throw exceptionUtil.duplicate("Email already exists");
         }
-        user.setName(request.name());
-        user.setEmail(request.email());
+
         if(authUtil.getCurrentUser().getRole() == Role.ADMIN) {
             LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
             user.setRole(request.role());
         }
+        user.setName(request.name());
+        user.setEmail(request.email());
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
@@ -264,7 +265,7 @@ public class UserServiceImpl implements UserService {
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw exceptionUtil.unauthorized("Invalid credentials");
         }
-        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
+        String token = jwtUtil.generateToken(user.getId(), user.getRole());
         UserResponse response = UserMapper.toResponse(user);
         long expiresIn = jwtProperties.getExpirationSeconds();
         Instant expiresAt = Instant.now().plusSeconds(expiresIn);

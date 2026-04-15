@@ -1,4 +1,4 @@
-package com.nishant.coursemanagement.service;
+package com.nishant.coursemanagement.unit.service;
 
 import com.nishant.coursemanagement.entity.Role;
 import com.nishant.coursemanagement.entity.User;
@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
-public abstract class BaseServiceTest {
+public abstract class BaseUnitTest {
     @Mock
     protected AuthUtil authUtil;
 

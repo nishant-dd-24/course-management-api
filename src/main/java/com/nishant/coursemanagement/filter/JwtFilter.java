@@ -37,7 +37,11 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            filterChain.doFilter(request, response);
+            authenticationEntryPoint.commence(
+                    request,
+                    response,
+                    new JwtAuthenticationException("Missing JWT Token")
+            );
             return;
         }
         String token = authHeader.substring(7);
@@ -46,11 +50,11 @@ public class JwtFilter extends OncePerRequestFilter {
                 authenticationEntryPoint.commence(request, response, new JwtAuthenticationException("Invalid JWT Token"));
                 return;
             }
-            String email = jwtUtil.extractEmail(token);
-            Role role = jwtUtil.extractRole(token);
+            Long id = jwtUtil.extractSubject(token);
+            Role role = jwtUtil.extractAuthorities(token);
             List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
             UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                    email,
+                    id,
                     null,
                     authorities
             );

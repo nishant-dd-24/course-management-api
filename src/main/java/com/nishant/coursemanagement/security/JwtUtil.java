@@ -41,9 +41,9 @@ public class JwtUtil {
             extraKeys = {"email", "role"},
             level = DEBUG
     )
-    public String generateToken(String email, Role role) {
+    public String generateToken(Long id, Role role) {
         return Jwts.builder()
-                .subject(email)
+                .subject(String.valueOf(id))
                 .claim("role", role.name())
                 .issuedAt(Date.from(Instant.now()))
                 .expiration(Date.from(Instant.now().plusSeconds(jwtProperties.getExpirationSeconds())))
@@ -52,18 +52,18 @@ public class JwtUtil {
     }
 
     @Loggable(
-            action = "JWT_EXTRACT_EMAIL",
+            action = "JWT_EXTRACT_ID",
             level = DEBUG
     )
-    public String extractEmail(String token) {
-        return extractAllClaims(token).getSubject();
+    public long extractSubject(String token) {
+        return Long.parseLong(extractAllClaims(token).getSubject());
     }
 
     @Loggable(
             action = "JWT_EXTRACT_ROLE",
             level = DEBUG
     )
-    public Role extractRole(String token) {
+    public Role extractAuthorities(String token) {
         return Role.valueOf(extractAllClaims(token).get("role", String.class));
     }
 
