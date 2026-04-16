@@ -28,12 +28,12 @@ public class EnrollmentQueryService {
 
     @Loggable(
             action = "QUERY_FIND_ENROLLMENTS",
-            extras = {"#studentId", "#courseId", "#active", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"studentId", "courseId", "active", "pageNumber", "pageSize"},
+            extras = {"#studentId", "#courseId", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"studentId", "courseId", "isActive", "pageNumber", "pageSize"},
             level = DEBUG
     )
-    public PageResponse<EnrollmentResponse> findEnrollments(Long studentId, Long courseId, Boolean active, Pageable pageable) {
-        Page<Enrollment> enrollments = enrollmentRepository.findEnrollments(studentId, courseId, active, pageable);
+    public PageResponse<EnrollmentResponse> findEnrollments(Long studentId, Long courseId, Boolean isActive, Pageable pageable) {
+        Page<Enrollment> enrollments = enrollmentRepository.findEnrollments(studentId, courseId, isActive, pageable);
         return PageMapper.map(enrollments, EnrollmentMapper::toResponse);
     }
 

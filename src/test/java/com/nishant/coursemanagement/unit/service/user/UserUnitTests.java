@@ -1,13 +1,6 @@
 package com.nishant.coursemanagement.unit.service.user;
 
-import com.nishant.coursemanagement.dto.user.LoginRequest;
-import com.nishant.coursemanagement.dto.user.LoginResponse;
-import com.nishant.coursemanagement.dto.user.NewPasswordRequest;
-import com.nishant.coursemanagement.dto.user.PasswordChangeResponse;
-import com.nishant.coursemanagement.dto.user.UserPatchRequest;
-import com.nishant.coursemanagement.dto.user.UserRequest;
-import com.nishant.coursemanagement.dto.user.UserResponse;
-import com.nishant.coursemanagement.dto.user.UserUpdateRequest;
+import com.nishant.coursemanagement.dto.user.*;
 import com.nishant.coursemanagement.entity.Role;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.user.UserUpdatedEvent;
@@ -28,6 +21,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -89,14 +83,12 @@ public class UserUnitTests extends BaseUnitTest {
     private static final String TOKEN = "jwt_token";
     private static final long EXPIRATION_SECONDS = 3600L;
     private static final String INVALID_CREDENTIALS = "Invalid credentials";
-
-    private UserRequest buildRequest(Role role){
-        return new UserRequest(RAW_NAME, RAW_EMAIL, PASSWORD, role);
-    }
+    private static final String FORBIDDEN = "Admin access required";
 
     private UserRequest buildRequest(){
-        return buildRequest(STUDENT);
+        return new UserRequest(RAW_NAME, RAW_EMAIL, PASSWORD);
     }
+
 
     private NewPasswordRequest buildChangePasswordRequest(String oldPassword, String newPassword, String confirmPassword) {
         return NewPasswordRequest.builder()
@@ -106,19 +98,33 @@ public class UserUnitTests extends BaseUnitTest {
                 .build();
     }
 
-    private UserUpdateRequest buildUpdateRequest(Role role) {
-        return UserUpdateRequest.builder()
+    private UserAdminUpdateRequest buildUpdateRequest(Role role) {
+        return UserAdminUpdateRequest.builder()
                 .name(RAW_UPDATED_NAME)
                 .email(RAW_UPDATED_EMAIL)
                 .role(role)
                 .build();
     }
 
-    private UserPatchRequest buildPatchRequest(String name, String email, Role role) {
-        return UserPatchRequest.builder()
+    private UserSelfUpdateRequest buildSelfUpdateRequest() {
+        return UserSelfUpdateRequest.builder()
+                .name(RAW_UPDATED_NAME)
+                .email(RAW_UPDATED_EMAIL)
+                .build();
+    }
+
+    private UserAdminPatchRequest buildPatchRequest(String name, String email, Role role) {
+        return UserAdminPatchRequest.builder()
                 .name(name)
                 .email(email)
                 .role(role)
+                .build();
+    }
+
+    private UserSelfPatchRequest buildSelfPatchRequest() {
+        return UserSelfPatchRequest.builder()
+                .name(RAW_UPDATED_NAME)
+                .email(RAW_UPDATED_EMAIL)
                 .build();
     }
 
@@ -162,6 +168,14 @@ public class UserUnitTests extends BaseUnitTest {
         verifyNoInteractions(userQueryService);
     }
 
+    private void mockAdmin() {
+        when(authUtil.getCurrentUser()).thenReturn(buildUser(true, ADMIN));
+    }
+
+    private void mockStudent() {
+        when(authUtil.getCurrentUser()).thenReturn(buildUser(true, STUDENT));
+    }
+
 
     private void verifyNoSecurityInteractions(){
         verifyNoInteractions(passwordEncoder, jwtUtil, jwtProperties);
@@ -181,6 +195,8 @@ public class UserUnitTests extends BaseUnitTest {
             User saved = captureSaved();
             assertEquals(ENCODED_PASSWORD, saved.getPassword());
             assertEquals(EMAIL, saved.getEmail());
+            assertEquals(STUDENT, saved.getRole());
+            assertTrue(saved.getIsActive());
             UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
             assertEquals(1L, event.userId());
         }
@@ -348,13 +364,11 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldUpdateUserSuccessfully() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(2L);
-            currentUser.setRole(STUDENT);
-            UserUpdateRequest request = buildUpdateRequest(STUDENT);
+            UserAdminUpdateRequest request = buildUpdateRequest(STUDENT);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             mockSaveWithId(userId);
 
             UserResponse response = userService.updateUser(request, userId);
@@ -364,7 +378,7 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(UPDATED_EMAIL, response.email());
             assertEquals(STUDENT.name(), response.role());
             verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             verify(authUtil).getCurrentUser();
             User saved = captureSaved();
             assertEquals(UPDATED_NAME, saved.getName());
@@ -379,10 +393,13 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldThrowDuplicateException_whenEmailAlreadyExists() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            UserUpdateRequest request = buildUpdateRequest(STUDENT);
+            User existingUser = buildUser(2L, STUDENT);
+            existingUser.setEmail(UPDATED_EMAIL);
+            UserAdminUpdateRequest request = buildUpdateRequest(STUDENT);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(true);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.of(existingUser));
             when(exceptionUtil.duplicate(EMAIL_ALREADY_EXISTS))
                     .thenReturn(new DuplicateResourceException(EMAIL_ALREADY_EXISTS));
 
@@ -392,9 +409,9 @@ public class UserUnitTests extends BaseUnitTest {
             );
 
             assertEquals(EMAIL_ALREADY_EXISTS, ex.getMessage());
+            verify(authUtil).getCurrentUser();
             verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
-            verify(authUtil, never()).getCurrentUser();
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
             verifyNoSecurityInteractions();
@@ -404,13 +421,11 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldUpdateRole_whenCurrentUserIsAdmin() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(2L);
-            currentUser.setRole(ADMIN);
-            UserUpdateRequest request = buildUpdateRequest(ADMIN);
+            UserAdminUpdateRequest request = buildUpdateRequest(ADMIN);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             mockSaveWithId(userId);
 
             UserResponse response = userService.updateUser(request, userId);
@@ -426,27 +441,24 @@ public class UserUnitTests extends BaseUnitTest {
         }
 
         @Test
-        void shouldNotUpdateRole_whenCurrentUserIsNotAdmin() {
+        void shouldThrowAccessDenied_whenCurrentUserIsNotAdmin() {
             Long userId = 1L;
-            User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(2L);
-            currentUser.setRole(STUDENT);
-            UserUpdateRequest request = buildUpdateRequest(ADMIN);
+            UserAdminUpdateRequest request = buildUpdateRequest(ADMIN);
 
-            when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
-            mockSaveWithId(userId);
+            mockStudent();
+            mockAccessDeniedException(FORBIDDEN);
 
-            UserResponse response = userService.updateUser(request, userId);
+            AccessDeniedException ex = assertThrows(
+                    AccessDeniedException.class,
+                    () -> userService.updateUser(request, userId)
+            );
 
-            assertNotNull(response);
-            assertEquals(STUDENT.name(), response.role());
+            assertEquals(FORBIDDEN, ex.getMessage());
             verify(authUtil).getCurrentUser();
-            User saved = captureSaved();
-            assertEquals(STUDENT, saved.getRole());
-            UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
-            assertEquals(userId, event.userId());
+            verify(userQueryService, never()).getUser(any(Long.class));
+            verify(userRepository, never()).findByEmail(any());
+            verify(userRepository, never()).save(any());
+            verifyNoEventPublished();
             verifyNoSecurityInteractions();
         }
 
@@ -454,11 +466,10 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldUpdateCurrentUser() {
             Long userId = 1L;
             User currentUser = buildUser(true, STUDENT);
-            UserUpdateRequest request = buildUpdateRequest(STUDENT);
+            UserSelfUpdateRequest request = buildSelfUpdateRequest();
 
             when(authUtil.getCurrentUser()).thenReturn(currentUser);
-            when(userQueryService.getUser(userId)).thenReturn(currentUser);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             mockSaveWithId(userId);
 
             UserResponse response = userService.updateMe(request);
@@ -467,9 +478,9 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(UPDATED_NAME, response.name());
             assertEquals(UPDATED_EMAIL, response.email());
             assertEquals(STUDENT.name(), response.role());
-            verify(authUtil, times(2)).getCurrentUser();
-            verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
+            verify(authUtil).getCurrentUser();
+            verify(userQueryService, never()).getUser(any(Long.class));
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             User saved = captureSaved();
             assertEquals(UPDATED_NAME, saved.getName());
             assertEquals(UPDATED_EMAIL, saved.getEmail());
@@ -483,13 +494,11 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldThrowException_whenRepositoryFails() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(2L);
-            currentUser.setRole(STUDENT);
-            UserUpdateRequest request = buildUpdateRequest(STUDENT);
+            UserAdminUpdateRequest request = buildUpdateRequest(STUDENT);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             when(userRepository.save(any())).thenThrow(new RuntimeException(DB_FAILURE));
 
             RuntimeException ex = assertThrows(
@@ -502,6 +511,8 @@ public class UserUnitTests extends BaseUnitTest {
         }
     }
 
+
+
     @Nested
     class PatchUserTests {
 
@@ -509,12 +520,11 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldPatchUserSuccessfully() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(RAW_UPDATED_NAME, RAW_UPDATED_EMAIL, null);
+            UserAdminPatchRequest request = buildPatchRequest(RAW_UPDATED_NAME, RAW_UPDATED_EMAIL, null);
 
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             mockSaveWithId(userId);
 
             UserResponse response = userService.patchUser(request, userId);
@@ -525,7 +535,7 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(STUDENT.name(), response.role());
             verify(authUtil).getCurrentUser();
             verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             User saved = captureSaved();
             assertEquals(UPDATED_NAME, saved.getName());
             assertEquals(UPDATED_EMAIL, saved.getEmail());
@@ -537,10 +547,9 @@ public class UserUnitTests extends BaseUnitTest {
 
         @Test
         void shouldThrowBadRequest_whenPatchRequestEmpty() {
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(null, null, null);
+            UserAdminPatchRequest request = buildPatchRequest(null, null, null);
+            mockAdmin();
             mockBadRequestException(PATCH_EMPTY);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
 
             CustomBadRequestException ex = assertThrows(
                     CustomBadRequestException.class,
@@ -557,10 +566,9 @@ public class UserUnitTests extends BaseUnitTest {
 
         @Test
         void shouldThrowBadRequest_whenNameBlank() {
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest("   ", null, null);
+            UserAdminPatchRequest request = buildPatchRequest("   ", null, null);
+            mockAdmin();
             mockBadRequestException(TITLE_BLANK);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
 
             CustomBadRequestException ex = assertThrows(
                     CustomBadRequestException.class,
@@ -577,10 +585,9 @@ public class UserUnitTests extends BaseUnitTest {
 
         @Test
         void shouldThrowBadRequest_whenEmailBlank() {
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(null, "   ", null);
+            UserAdminPatchRequest request = buildPatchRequest(null, "   ", null);
+            mockAdmin();
             mockBadRequestException(DESCRIPTION_BLANK);
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
 
             CustomBadRequestException ex = assertThrows(
                     CustomBadRequestException.class,
@@ -599,12 +606,13 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldThrowDuplicateException_whenEmailAlreadyExists() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(null, RAW_UPDATED_EMAIL, null);
+            User existingUser = buildUser(2L, STUDENT);
+            existingUser.setEmail(UPDATED_EMAIL);
+            UserAdminPatchRequest request = buildPatchRequest(null, RAW_UPDATED_EMAIL, null);
 
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(true);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.of(existingUser));
             when(exceptionUtil.duplicate(EMAIL_ALREADY_EXISTS))
                     .thenReturn(new DuplicateResourceException(EMAIL_ALREADY_EXISTS));
 
@@ -616,7 +624,7 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(EMAIL_ALREADY_EXISTS, ex.getMessage());
             verify(authUtil).getCurrentUser();
             verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
             verifyNoSecurityInteractions();
@@ -626,10 +634,9 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldUpdateRole_whenRoleProvidedAndDifferent() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(true, ADMIN);
-            UserPatchRequest request = buildPatchRequest(null, null, ADMIN);
+            UserAdminPatchRequest request = buildPatchRequest(null, null, ADMIN);
 
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
             mockSaveWithId(userId);
 
@@ -639,7 +646,7 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(ADMIN.name(), response.role());
             verify(authUtil).getCurrentUser();
             verify(userQueryService).getUser(userId);
-            verify(userRepository, never()).existsByEmail(any());
+            verify(userRepository, never()).findByEmail(any());
             User saved = captureSaved();
             assertEquals(ADMIN, saved.getRole());
             UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
@@ -648,27 +655,24 @@ public class UserUnitTests extends BaseUnitTest {
         }
 
         @Test
-        void shouldNotUpdateRole_whenCurrentUserNotAdmin() {
+        void shouldThrowAccessDenied_whenCurrentUserNotAdmin() {
             Long userId = 1L;
-            User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(null, null, ADMIN);
+            UserAdminPatchRequest request = buildPatchRequest(null, null, ADMIN);
 
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
-            when(userQueryService.getUser(userId)).thenReturn(user);
-            mockSaveWithId(userId);
+            mockStudent();
+            mockAccessDeniedException(FORBIDDEN);
 
-            UserResponse response = userService.patchUser(request, userId);
+            AccessDeniedException ex = assertThrows(
+                    AccessDeniedException.class,
+                    () -> userService.patchUser(request, userId)
+            );
 
-            assertNotNull(response);
-            assertEquals(STUDENT.name(), response.role());
+            assertEquals(FORBIDDEN, ex.getMessage());
             verify(authUtil).getCurrentUser();
-            verify(userQueryService).getUser(userId);
-            verify(userRepository, never()).existsByEmail(any());
-            User saved = captureSaved();
-            assertEquals(STUDENT, saved.getRole());
-            UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
-            assertEquals(userId, event.userId());
+            verify(userQueryService, never()).getUser(any(Long.class));
+            verify(userRepository, never()).findByEmail(any());
+            verify(userRepository, never()).save(any());
+            verifyNoEventPublished();
             verifyNoSecurityInteractions();
         }
 
@@ -676,12 +680,10 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldPatchCurrentUserSuccessfully() {
             Long userId = 1L;
             User currentUser = buildUser(true, STUDENT);
-            User user = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(RAW_UPDATED_NAME, RAW_UPDATED_EMAIL, null);
+            UserSelfPatchRequest request = buildSelfPatchRequest();
 
             when(authUtil.getCurrentUser()).thenReturn(currentUser);
-            when(userQueryService.getUser(userId)).thenReturn(user);
-            when(userRepository.existsByEmail(UPDATED_EMAIL)).thenReturn(false);
+            when(userRepository.findByEmail(UPDATED_EMAIL)).thenReturn(Optional.empty());
             mockSaveWithId(userId);
 
             UserResponse response = userService.patchMe(request);
@@ -690,9 +692,9 @@ public class UserUnitTests extends BaseUnitTest {
             assertEquals(UPDATED_NAME, response.name());
             assertEquals(UPDATED_EMAIL, response.email());
             assertEquals(STUDENT.name(), response.role());
-            verify(authUtil, times(2)).getCurrentUser();
-            verify(userQueryService).getUser(userId);
-            verify(userRepository).existsByEmail(UPDATED_EMAIL);
+            verify(authUtil).getCurrentUser();
+            verify(userQueryService, never()).getUser(any(Long.class));
+            verify(userRepository).findByEmail(UPDATED_EMAIL);
             User saved = captureSaved();
             assertEquals(UPDATED_NAME, saved.getName());
             assertEquals(UPDATED_EMAIL, saved.getEmail());
@@ -706,10 +708,9 @@ public class UserUnitTests extends BaseUnitTest {
         void shouldThrowException_whenRepositoryFails() {
             Long userId = 1L;
             User user = buildUser(true, STUDENT);
-            User currentUser = buildUser(true, STUDENT);
-            UserPatchRequest request = buildPatchRequest(RAW_UPDATED_NAME, null, null);
+            UserAdminPatchRequest request = buildPatchRequest(RAW_UPDATED_NAME, null, null);
 
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
             when(userRepository.save(any())).thenThrow(new RuntimeException(DB_FAILURE));
 
@@ -731,51 +732,11 @@ public class UserUnitTests extends BaseUnitTest {
             Long userId = 1L;
             User user = buildUser(true);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
             mockSaveWithId(userId);
 
             userService.deactivateUser(userId);
-
-            assertFalse(user.getIsActive());
-            verify(userQueryService).getUser(userId);
-            User saved = captureSaved();
-            assertEquals(userId, saved.getId());
-            assertFalse(saved.getIsActive());
-            UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
-            assertEquals(userId, event.userId());
-            verifyNoSecurityInteractions();
-            verifyNoInteractions(authUtil);
-        }
-
-        @Test
-        void shouldThrowException_whenUserNotFound() {
-            Long userId = 1L;
-            when(userQueryService.getUser(userId)).thenThrow(new ResourceNotFoundException(NOT_FOUND));
-
-            ResourceNotFoundException ex = assertThrows(
-                    ResourceNotFoundException.class,
-                    () -> userService.deactivateUser(userId)
-            );
-
-            assertEquals(NOT_FOUND, ex.getMessage());
-            verify(userQueryService).getUser(userId);
-            verify(userRepository, never()).save(any());
-            verifyNoEventPublished();
-            verifyNoSecurityInteractions();
-            verifyNoInteractions(authUtil);
-        }
-
-        @Test
-        void shouldDeactivateCurrentUser() {
-            Long userId = 1L;
-            User currentUser = buildUser(userId);
-            User user = buildUser(true);
-
-            when(authUtil.getCurrentUser()).thenReturn(currentUser);
-            when(userQueryService.getUser(userId)).thenReturn(user);
-            mockSaveWithId(userId);
-
-            userService.deactivateMe();
 
             assertFalse(user.getIsActive());
             verify(authUtil).getCurrentUser();
@@ -789,10 +750,50 @@ public class UserUnitTests extends BaseUnitTest {
         }
 
         @Test
+        void shouldThrowException_whenUserNotFound() {
+            Long userId = 1L;
+            mockAdmin();
+            when(userQueryService.getUser(userId)).thenThrow(new ResourceNotFoundException(NOT_FOUND));
+
+            ResourceNotFoundException ex = assertThrows(
+                    ResourceNotFoundException.class,
+                    () -> userService.deactivateUser(userId)
+            );
+
+            assertEquals(NOT_FOUND, ex.getMessage());
+            verify(authUtil).getCurrentUser();
+            verify(userQueryService).getUser(userId);
+            verify(userRepository, never()).save(any());
+            verifyNoEventPublished();
+            verifyNoSecurityInteractions();
+        }
+
+        @Test
+        void shouldDeactivateCurrentUser() {
+            Long userId = 1L;
+            User currentUser = buildUser(userId, ADMIN);
+
+            when(authUtil.getCurrentUser()).thenReturn(currentUser);
+            mockSaveWithId(userId);
+
+            userService.deactivateMe();
+
+            assertFalse(currentUser.getIsActive());
+            verify(authUtil, times(1)).getCurrentUser();
+            User saved = captureSaved();
+            assertEquals(userId, saved.getId());
+            assertFalse(saved.getIsActive());
+            UserUpdatedEvent event = captureEvent(UserUpdatedEvent.class);
+            assertEquals(userId, event.userId());
+            verifyNoSecurityInteractions();
+        }
+
+        @Test
         void shouldThrowException_whenRepositoryFails() {
             Long userId = 1L;
             User user = buildUser(true);
 
+            mockAdmin();
             when(userQueryService.getUser(userId)).thenReturn(user);
             when(userRepository.save(any())).thenThrow(new RuntimeException(DB_FAILURE));
 

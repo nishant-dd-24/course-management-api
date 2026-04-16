@@ -37,9 +37,9 @@ public class UserController {
     public PageResponse<UserResponse> getAllUsers(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String email,
-            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Boolean isActive,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
-        return userService.getAllUsers(name, email, active, pageable);
+        return userService.getAllUsers(name, email, isActive, pageable);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -52,14 +52,14 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
-    public UserResponse updateUser(@Valid @RequestBody UserUpdateRequest request, @PathVariable Long id) {
+    public UserResponse updateUser(@Valid @RequestBody UserAdminUpdateRequest request, @PathVariable Long id) {
         return userService.updateUser(request, id);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @PatchMapping("/{id}")
     @ResponseStatus(HttpStatus.OK)
-    public UserResponse patchUser(@RequestBody UserPatchRequest request, @PathVariable Long id) {
+    public UserResponse patchUser(@RequestBody UserAdminPatchRequest request, @PathVariable Long id) {
         return userService.patchUser(request, id);
     }
 
@@ -78,13 +78,13 @@ public class UserController {
 
     @PutMapping("/my")
     @ResponseStatus(HttpStatus.OK)
-    public UserResponse updateMe(@Valid @RequestBody UserUpdateRequest request) {
+    public UserResponse updateMe(@Valid @RequestBody UserSelfUpdateRequest request) {
         return userService.updateMe(request);
     }
 
     @PatchMapping("/my")
     @ResponseStatus(HttpStatus.OK)
-    public UserResponse patchMe(@RequestBody UserPatchRequest request) {
+    public UserResponse patchMe(@RequestBody UserSelfPatchRequest request) {
         return userService.patchMe(request);
     }
 

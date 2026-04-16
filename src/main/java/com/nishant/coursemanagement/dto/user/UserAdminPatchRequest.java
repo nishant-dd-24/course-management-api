@@ -5,13 +5,15 @@ import jakarta.validation.constraints.Email;
 import lombok.Builder;
 
 @Builder
-public record UserPatchRequest(
+public record UserAdminPatchRequest(
 
         String name,
 
         @Email(message = "Invalid email format")
         String email,
 
-        Role role
+        Role role,
+
+        Boolean isActive
 ) {
 }

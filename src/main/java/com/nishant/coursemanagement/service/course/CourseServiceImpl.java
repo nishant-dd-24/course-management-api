@@ -84,8 +84,8 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Loggable(
             action = "GET_ALL_COURSES",
-            extras = {"#title", "#active", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"title", "active", "instructorId", "pageNumber", "pageSize"},
+            extras = {"#title", "#isActive", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "isActive", "instructorId", "pageNumber", "pageSize"},
             level = DEBUG
     )
     public PageResponse<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable) {
@@ -108,8 +108,8 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Loggable(
             action = "GET_MY_COURSES",
-            extras = {"#title", "#active", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"title", "active", "pageNumber", "pageSize"},
+            extras = {"#title", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "isActive", "pageNumber", "pageSize"},
             includeCurrentUser = true,
             level = DEBUG
     )

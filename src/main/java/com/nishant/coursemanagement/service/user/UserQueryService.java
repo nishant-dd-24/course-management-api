@@ -60,20 +60,20 @@ public class UserQueryService {
     @Cacheable(
             sync = true,
             value = "users",
-            key = "@cacheKeyUtil.buildUserKey(#name, #email, #active, #pageable)"
+            key = "@cacheKeyUtil.buildUserKey(#name, #email, #isActive, #pageable)"
     )
     @Loggable(
             action = "QUERY_GET_ALL_USERS",
-            extras = {"#name", "#email", "#active", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"name", "email", "active", "pageNumber", "pageSize"},
+            extras = {"#name", "#email", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"name", "email", "isActive", "pageNumber", "pageSize"},
             level = DEBUG
     )
-    public PageResponse<UserResponse> getAllUsers(String name, String email, Boolean active, Pageable pageable) {
-        if (name == null && email == null && active == null) {
+    public PageResponse<UserResponse> getAllUsers(String name, String email, Boolean isActive, Pageable pageable) {
+        if (name == null && email == null && isActive == null) {
             LogUtil.log(log, WARN, "QUERY_GET_ALL_USERS_NO_FILTER", "Querying all users without filters", "pageNumber", pageable.getPageNumber(), "pageSize", pageable.getPageSize());
             return PageMapper.map(userRepository.findAll(pageable), UserMapper::toResponse);
         }
-        return PageMapper.map(userRepository.findUsers(name, email, active, pageable),
+        return PageMapper.map(userRepository.findUsers(name, email, isActive, pageable),
                 UserMapper::toResponse);
     }
 }

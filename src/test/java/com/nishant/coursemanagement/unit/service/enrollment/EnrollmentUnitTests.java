@@ -62,7 +62,6 @@ public class EnrollmentUnitTests extends BaseUnitTest {
     private static final String ENROLLMENT_NOT_FOUND = "Enrollment not found";
     private static final String ALREADY_ENROLLED = "Already enrolled";
     private static final String COURSE_FULL = "Course is full";
-    private static final String DB_FAILURE = "DB Failure";
     private static final String TITLE = "Course";
     private static final String DESCRIPTION = "Course Description";
 
@@ -262,11 +261,10 @@ public class EnrollmentUnitTests extends BaseUnitTest {
             when(authUtil.getCurrentUser()).thenReturn(student);
             when(courseQueryService.getCourseByIdForUpdate(COURSE_ID)).thenReturn(Optional.of(course));
             when(enrollmentQueryService.findByStudentIdAndCourseId(STUDENT_ID, COURSE_ID)).thenReturn(null);
-            when(enrollmentRepository.save(any(Enrollment.class))).thenThrow(new DataIntegrityViolationException(DB_FAILURE));
-            when(exceptionUtil.duplicate(ALREADY_ENROLLED)).thenReturn(new DuplicateResourceException(ALREADY_ENROLLED));
+            when(enrollmentRepository.save(any(Enrollment.class))).thenThrow(new DataIntegrityViolationException(ALREADY_ENROLLED));
 
-            DuplicateResourceException ex = assertThrows(
-                    DuplicateResourceException.class,
+            DataIntegrityViolationException ex = assertThrows(
+                    DataIntegrityViolationException.class,
                     () -> enrollmentService.enroll(COURSE_ID)
             );
 

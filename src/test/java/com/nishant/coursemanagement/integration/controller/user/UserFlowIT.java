@@ -9,7 +9,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
 import static com.nishant.coursemanagement.entity.Role.INSTRUCTOR;
-import static com.nishant.coursemanagement.entity.Role.STUDENT;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,7 +39,6 @@ class UserFlowIT extends BaseIntegrationTest {
                     .name(NEW_NAME)
                     .email(NEW_EMAIL)
                     .password(PASSWORD)
-                    .role(STUDENT)
                     .build();
         }
 
@@ -202,7 +200,7 @@ class UserFlowIT extends BaseIntegrationTest {
             mockMvc.perform(get(ROOT_ENDPOINT)
                             .param("name", NEW_NAME)
                             .param("email", NEW_EMAIL)
-                            .param("active", "true")
+                            .param("isActive", "true")
                             .with(auth()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.content.length()").value(1))
@@ -215,56 +213,73 @@ class UserFlowIT extends BaseIntegrationTest {
     @Nested
     class UpdateTests{
 
-        private UserUpdateRequest userUpdateRequest;
+        private UserAdminUpdateRequest userAdminUpdateRequest;
+        private UserSelfUpdateRequest userSelfUpdateRequest;
 
         private void buildUserUpdateRequest(){
-            userUpdateRequest = UserUpdateRequest.builder()
+            userAdminUpdateRequest = UserAdminUpdateRequest.builder()
                     .name(NEW_NAME)
                     .email(NEW_EMAIL)
                     .role(INSTRUCTOR)
+                    .isActive(true)
+                    .build();
+        }
+
+        private void buildUserSelfUpdateRequest(){
+            userSelfUpdateRequest = UserSelfUpdateRequest.builder()
+                    .name(NEW_NAME)
+                    .email(NEW_EMAIL)
                     .build();
         }
 
         @Test
-        void shouldUpdateUserSuccessfully() throws Exception {
+        void
+        shouldUpdateUserSuccessfully() throws Exception {
             setAdminToken();
             buildUser(DUMMY_NAME, DUMMY_EMAIL);
             buildUserUpdateRequest();
 
             mockMvc.perform(put(String.format(ID_ENDPOINT, dummyUser.getId()))
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(toJson(userUpdateRequest))
+                            .content(toJson(userAdminUpdateRequest))
                             .with(auth()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value(userUpdateRequest.name()))
-                    .andExpect(jsonPath("$.email").value(userUpdateRequest.email()))
-                    .andExpect(jsonPath("$.role").value(userUpdateRequest.role().toString()));
+                    .andExpect(jsonPath("$.name").value(userAdminUpdateRequest.name()))
+                    .andExpect(jsonPath("$.email").value(userAdminUpdateRequest.email()))
+                    .andExpect(jsonPath("$.role").value(userAdminUpdateRequest.role().toString()))
+                    .andExpect(jsonPath("$.isActive").value(userAdminUpdateRequest.isActive()));
 
         }
 
         @Test
         void shouldUpdateOwnProfileSuccessfully_andShouldNotUpdateRole_whenNonAdmin() throws Exception {
-            buildUserUpdateRequest();
+            buildUserSelfUpdateRequest();
             setStudentToken();
             mockMvc.perform(put(MY_ENDPOINT)
                             .with(auth())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(toJson(userUpdateRequest)))
+                            .content(toJson(userSelfUpdateRequest)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value(userUpdateRequest.name()))
-                    .andExpect(jsonPath("$.email").value(userUpdateRequest.email()))
+                    .andExpect(jsonPath("$.name").value(userSelfUpdateRequest.name()))
+                    .andExpect(jsonPath("$.email").value(userSelfUpdateRequest.email()))
                     .andExpect(jsonPath("$.role").value(testUser.getRole().toString()));
         }
     }
 
     @Nested
     class PatchTests{
-        private UserPatchRequest userPatchRequest;
-
+        private UserAdminPatchRequest userAdminPatchRequest;
+        private UserSelfPatchRequest userSelfPatchRequest;
         private void buildUserPatchRequest(){
-            userPatchRequest = UserPatchRequest.builder()
+            userAdminPatchRequest = UserAdminPatchRequest.builder()
                     .name(NEW_NAME)
                     .role(INSTRUCTOR)
+                    .build();
+        }
+
+        private void buildUserSelfPatchRequest(){
+            userSelfPatchRequest = UserSelfPatchRequest.builder()
+                    .name(NEW_NAME)
                     .build();
         }
 
@@ -276,38 +291,38 @@ class UserFlowIT extends BaseIntegrationTest {
             mockMvc.perform(patch(String.format(ID_ENDPOINT, dummyUser.getId()))
                             .with(auth())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(toJson(userPatchRequest)))
+                            .content(toJson(userAdminPatchRequest)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value(userPatchRequest.name()))
+                    .andExpect(jsonPath("$.name").value(userAdminPatchRequest.name()))
                     .andExpect(jsonPath("$.email").value(dummyUser.getEmail()))
-                    .andExpect(jsonPath("$.role").value(userPatchRequest.role().toString()));
+                    .andExpect(jsonPath("$.role").value(userAdminPatchRequest.role().toString()));
         }
 
         @Test
         void shouldThrowBadRequest_whenPatchRequestEmpty() throws Exception {
             setAdminToken();
             buildUser(DUMMY_NAME, DUMMY_EMAIL);
-            userPatchRequest = UserPatchRequest.builder()
+            userAdminPatchRequest = UserAdminPatchRequest.builder()
                     .name("  ")
                     .build();
 
             mockMvc.perform(patch(String.format(ID_ENDPOINT, dummyUser.getId()))
                             .with(auth())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(toJson(userPatchRequest)))
+                            .content(toJson(userAdminPatchRequest)))
                     .andExpect(status().isBadRequest());
         }
 
         @Test
         void shouldPatchOwnProfileSuccessfully_andShouldNotPatchRole_whenNonAdmin() throws Exception {
-            buildUserPatchRequest();
+            buildUserSelfPatchRequest();
             setInstructorToken();
             mockMvc.perform(patch(MY_ENDPOINT)
                             .with(auth())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(toJson(userPatchRequest)))
+                            .content(toJson(userSelfPatchRequest)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value(userPatchRequest.name()))
+                    .andExpect(jsonPath("$.name").value(userSelfPatchRequest.name()))
                     .andExpect(jsonPath("$.email").value(testUser.getEmail()))
                     .andExpect(jsonPath("$.role").value(testUser.getRole().toString()));
         }
@@ -328,6 +343,7 @@ class UserFlowIT extends BaseIntegrationTest {
 
         @Test
         void shouldDeactivateOwnAccountSuccessfully() throws Exception {
+            setInstructorToken();
             mockMvc.perform(delete(MY_ENDPOINT)
                             .with(auth()))
                     .andExpect(status().isNoContent());

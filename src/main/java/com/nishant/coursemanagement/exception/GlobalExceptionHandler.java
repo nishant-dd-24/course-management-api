@@ -16,6 +16,7 @@ import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.ERROR;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -136,6 +137,13 @@ public class GlobalExceptionHandler {
     public ErrorResponse handleNoHandlerFound(NoHandlerFoundException ex, HttpServletRequest request) {
         LogUtil.log(log, WARN, "NO_HANDLER_FOUND", "No handler found for request", "method", ex.getHttpMethod(), "path", ex.getRequestURL());
         return errorResponseFactory.build(HttpStatus.NOT_FOUND, "The requested resource was not found", ErrorCode.NOT_FOUND, request);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleDataIntegrityViolation(DataIntegrityViolationException ex, HttpServletRequest request) {
+        LogUtil.log(log, WARN, "DATA_INTEGRITY_VIOLATION", "Data integrity violation occurred", "message", ex.getMostSpecificCause().getMessage(), "path", request.getRequestURI());
+        return errorResponseFactory.build(HttpStatus.CONFLICT, "Data integrity violation: " + ex.getMostSpecificCause().getMessage(), ErrorCode.DATA_INTEGRITY_VIOLATION, request);
     }
 
     @ExceptionHandler(Exception.class)

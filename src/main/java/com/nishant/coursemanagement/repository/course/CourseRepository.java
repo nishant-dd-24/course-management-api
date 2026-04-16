@@ -17,12 +17,12 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     @Query("""
             SELECT c FROM Course c
             WHERE (:title IS NULL OR LOWER(c.title) LIKE :title)
-            AND (:active IS NULL OR c.isActive = :active)
+            AND (:isActive IS NULL OR c.isActive = :isActive)
             AND (:instructorId IS NULL OR c.instructor.id = :instructorId)
             """)
     Page<Course> findCourses(
             @Param("title") String title,
-            @Param("active") Boolean active,
+            @Param("isActive") Boolean isActive,
             @Param("instructorId") Long instructorId,
             Pageable pageable
     );

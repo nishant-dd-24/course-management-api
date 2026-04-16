@@ -17,7 +17,6 @@ import com.nishant.coursemanagement.log.util.LogUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,7 +58,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Enrollment existingEnrollment = enrollmentQueryService.findByStudentIdAndCourseId(currentUser.getId(), courseId);
         if (existingEnrollment != null) {
             if (existingEnrollment.getIsActive()) {
-                LogUtil.log(log, WARN, "ENROLL_FAILED", "Already enrolled in active course", "reason", "ALREADY_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
+                LogUtil.log(log, WARN, "ENROLL_FAILED", "Already enrolled in isActive course", "reason", "ALREADY_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
                 throw exceptionUtil.duplicate("Already enrolled");
             } else {
                 if (course.getEnrolledStudents() >= course.getMaxSeats()) {
@@ -84,22 +83,19 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .course(course)
                 .build();
         course.setEnrolledStudents(course.getEnrolledStudents() + 1);
-        try {
-            enrollment = enrollmentRepository.save(enrollment);
-            Course savedCourse = courseRepository.save(course);
-            eventPublisher.publishEvent(new EnrollmentChangedEvent(savedCourse.getId()));
-        } catch (DataIntegrityViolationException e) {
-            LogUtil.log(log, WARN, "ENROLL_FAILED", "Data integrity violation during enrollment", "reason", "DATA_INTEGRITY_VIOLATION", "userId", currentUser.getId(), "courseId", courseId, "error", e.getMessage());
-            throw exceptionUtil.duplicate("Already enrolled");
-        }
+
+        enrollment = enrollmentRepository.save(enrollment);
+        Course savedCourse = courseRepository.save(course);
+        eventPublisher.publishEvent(new EnrollmentChangedEvent(savedCourse.getId()));
+
         return EnrollmentMapper.toResponse(enrollment);
     }
 
     @Override
     @Loggable(
             action = "GET_MY_ENROLLMENTS",
-            extras = {"#active"},
-            extraKeys = {"active"},
+            extras = {"#isActive"},
+            extraKeys = {"isActive"},
             includeCurrentUser = true
     )
     public PageResponse<EnrollmentResponse> getMyEnrollments(Boolean active, Pageable pageable) {
@@ -110,8 +106,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Loggable(
             action = "GET_ENROLLMENTS_BY_COURSE",
-            extras = {"#courseId", "#active"},
-            extraKeys = {"courseId", "active"},
+            extras = {"#courseId", "#isActive"},
+            extraKeys = {"courseId", "isActive"},
             includeCurrentUser = true
     )
     public PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, Boolean active, Pageable pageable) {
@@ -133,7 +129,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         User currentUser = authUtil.getCurrentUser();
         Enrollment enrollment = enrollmentQueryService.findByStudentIdAndCourseId(currentUser.getId(), courseId);
         if (enrollment == null || !enrollment.getIsActive()) {
-            LogUtil.log(log, WARN, "UNENROLL_FAILED", "Not enrolled in active course", "reason", "NOT_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
+            LogUtil.log(log, WARN, "UNENROLL_FAILED", "Not enrolled in isActive course", "reason", "NOT_ENROLLED_ACTIVE", "userId", currentUser.getId(), "courseId", courseId);
             throw exceptionUtil.notFound("Enrollment not found");
         }
         enrollment.setIsActive(false);

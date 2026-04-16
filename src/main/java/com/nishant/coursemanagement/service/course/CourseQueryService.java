@@ -84,17 +84,17 @@ public class CourseQueryService {
 
     @Cacheable(sync = true,
             value = "courses",
-            key = "@cacheKeyUtil.buildCourseKey(#title, #active, #instructorId, #pageable)"
+            key = "@cacheKeyUtil.buildCourseKey(#title, #isActive, #instructorId, #pageable)"
     )
     @Loggable(
             action = "QUERY_GET_ALL_COURSES",
-            extras = {"#title", "#active", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"title", "active", "instructorId", "pageNumber", "pageSize"},
+            extras = {"#title", "#isActive", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"title", "isActive", "instructorId", "pageNumber", "pageSize"},
             level = DEBUG
     )
-    public PageResponse<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable) {
+    public PageResponse<CourseResponse> getAllCourses(String title, Boolean isActive, Long instructorId, Pageable pageable) {
         return PageMapper.map(
-                courseRepository.findCourses(title, active, instructorId, pageable),
+                courseRepository.findCourses(title, isActive, instructorId, pageable),
                 CourseMapper::toResponse);
     }
 }

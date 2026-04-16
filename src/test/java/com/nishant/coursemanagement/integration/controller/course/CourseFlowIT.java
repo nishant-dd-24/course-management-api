@@ -41,7 +41,7 @@ public class CourseFlowIT extends BaseIntegrationTest {
     private static final String SIZE_5 = "5";
     private static final String TITLE_PARAM = "title";
     private static final String INSTRUCTOR_ID_PARAM = "instructorId";
-    private static final String ACTIVE_PARAM = "active";
+    private static final String ACTIVE_PARAM = "isActive";
     private static final String TRUE_VALUE = "true";
 
     private CourseRequest courseRequest;

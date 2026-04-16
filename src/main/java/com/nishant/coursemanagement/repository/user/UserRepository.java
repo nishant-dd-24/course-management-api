@@ -19,11 +19,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
             SELECT u FROM User u
             WHERE (:name IS NULL OR LOWER(u.name) LIKE :name)
             AND (:email IS NULL OR LOWER(u.email) LIKE :email)
-            AND (:active IS NULL OR u.isActive = :active)
+            AND (:isActive IS NULL OR u.isActive = :isActive)
             """)
     Page<User> findUsers(
             @Param("name") String name,
             @Param("email") String email,
-            @Param("active") Boolean active,
+            @Param("isActive") Boolean active,
             Pageable pageable);
 }

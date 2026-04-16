@@ -32,21 +32,10 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN')")
     public PageResponse<CourseResponse> allCourses(
             @RequestParam(required = false) String title,
-            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Boolean isActive,
             @RequestParam(required = false) Long instructorId,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
-        return courseService.getAllCourses(title, active, instructorId, pageable);
-    }
-
-    @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public CourseResponse getCourse(@PathVariable Long id) {
-        return courseService.getCourseById(id);
-    }
-
-    @GetMapping("/active/{id}")
-    public CourseResponse getActiveCourse(@PathVariable Long id) {
-        return courseService.getActiveCourse(id);
+        return courseService.getAllCourses(title, isActive, instructorId, pageable);
     }
 
     @GetMapping("/active")
@@ -57,29 +46,40 @@ public class CourseController {
         return courseService.getAllActiveCourses(title, instructorId, pageable);
     }
 
+    @GetMapping("/{id:\\d+}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public CourseResponse getCourse(@PathVariable Long id) {
+        return courseService.getCourseById(id);
+    }
+
+    @GetMapping("/active/{id:\\d+}")
+    public CourseResponse getActiveCourse(@PathVariable Long id) {
+        return courseService.getActiveCourse(id);
+    }
+
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @GetMapping("/my")
     public PageResponse<CourseResponse> myCourses(
             @RequestParam(required = false) String title,
-            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Boolean isActive,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
-        return courseService.getMyCourses(title, active, pageable);
+        return courseService.getMyCourses(title, isActive, pageable);
     }
 
     @PreAuthorize("hasRole('INSTRUCTOR')")
-    @PutMapping("/{id}")
+    @PutMapping("/{id:\\d+}")
     public CourseResponse update(@PathVariable Long id, @Valid @RequestBody CourseUpdateRequest request) {
         return courseService.updateCourse(id, request);
     }
 
     @PreAuthorize("hasRole('INSTRUCTOR')")
-    @PatchMapping("/{id}")
+    @PatchMapping("/{id:\\d+}")
     public CourseResponse patch(@PathVariable Long id, @Valid @RequestBody CoursePatchRequest request) {
         return courseService.patchCourse(id, request);
     }
 
     @PreAuthorize("hasRole('INSTRUCTOR')")
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/{id:\\d+}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deactivate(@PathVariable Long id) {
         courseService.deactivateCourse(id);

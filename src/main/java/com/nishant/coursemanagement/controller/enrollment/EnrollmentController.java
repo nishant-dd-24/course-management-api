@@ -25,9 +25,9 @@ public class EnrollmentController {
     @PreAuthorize("hasRole('STUDENT')")
     @GetMapping("/my")
     public PageResponse<EnrollmentResponse> myEnrollments(
-            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Boolean isActive,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
-        return enrollmentService.getMyEnrollments(active, pageable);
+        return enrollmentService.getMyEnrollments(isActive, pageable);
     }
 
     @PreAuthorize("hasRole('STUDENT')")
@@ -40,9 +40,9 @@ public class EnrollmentController {
     @PreAuthorize("hasRole('INSTRUCTOR')")
     @GetMapping("/{id}")
     public PageResponse<EnrollmentResponse> getByCourse(
-            @RequestParam(required = false) Boolean active,
+            @RequestParam(required = false) Boolean isActive,
             @PathVariable Long id,
             @PageableDefault(size = 5, sort = "id") Pageable pageable) {
-        return enrollmentService.getEnrollmentsByCourse(id, active, pageable);
+        return enrollmentService.getEnrollmentsByCourse(id, isActive, pageable);
     }
 }

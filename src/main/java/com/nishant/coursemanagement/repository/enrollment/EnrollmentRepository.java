@@ -16,12 +16,12 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
             SELECT e FROM Enrollment e
             WHERE (:studentId IS NULL OR e.student.id = :studentId)
             AND (:courseId IS NULL OR e.course.id = :courseId)
-            AND (:active IS NULL OR e.isActive = :active)
+            AND (:isActive IS NULL OR e.isActive = :isActive)
             """)
     Page<Enrollment> findEnrollments(
             @Param("studentId") Long studentId,
             @Param("courseId") Long courseId,
-            @Param("active") Boolean active,
+            @Param("isActive") Boolean isActive,
             Pageable pageable
     );
 }

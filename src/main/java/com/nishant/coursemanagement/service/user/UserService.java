@@ -12,17 +12,17 @@ public interface UserService {
 
     UserResponse getUserById(Long id);
 
-    UserResponse updateUser(UserUpdateRequest request, Long id);
+    UserResponse updateUser(UserAdminUpdateRequest request, Long id);
 
-    UserResponse patchUser(UserPatchRequest request, Long id);
+    UserResponse patchUser(UserAdminPatchRequest request, Long id);
 
     void deactivateUser(Long id);
 
     UserResponse getMe();
 
-    UserResponse updateMe(UserUpdateRequest request);
+    UserResponse updateMe(UserSelfUpdateRequest request);
 
-    UserResponse patchMe(UserPatchRequest request);
+    UserResponse patchMe(UserSelfPatchRequest request);
 
     void deactivateMe();
 

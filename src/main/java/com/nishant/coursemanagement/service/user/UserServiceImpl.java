@@ -43,6 +43,12 @@ public class UserServiceImpl implements UserService {
     private final ExceptionUtil exceptionUtil;
     private final ApplicationEventPublisher eventPublisher;
 
+    private void verifyAdmin() {
+        if (authUtil.getCurrentUser().getRole() != Role.ADMIN) {
+            throw exceptionUtil.accessDenied("Admin access required");
+        }
+    }
+
     private UserResponse reactivateUser(User user) {
         user.setIsActive(true);
         User saved = userRepository.save(user);
@@ -69,6 +75,7 @@ public class UserServiceImpl implements UserService {
         }
         User user = UserMapper.toEntity(request);
         user.setPassword(passwordEncoder.encode(request.password()));
+        user.setRole(Role.STUDENT);
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
@@ -83,6 +90,7 @@ public class UserServiceImpl implements UserService {
             extraKeys = {"userId"}
     )
     public UserResponse getUserById(Long id) {
+        verifyAdmin();
         return userQueryService.getUserResponse(id);
     }
 
@@ -117,13 +125,20 @@ public class UserServiceImpl implements UserService {
             action = "GET_ALL_USERS",
             message = "Getting all users",
             level = DEBUG,
-            extras = {"#name", "#email", "#active", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
-            extraKeys = {"name", "email", "active", "pageNumber", "pageSize"}
+            extras = {"#name", "#email", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extraKeys = {"name", "email", "isActive", "pageNumber", "pageSize"}
     )
     public PageResponse<UserResponse> getAllUsers(String name, String email, Boolean active, Pageable pageable) {
+        verifyAdmin();
         name = StringUtil.makeQueryLike(name);
         email = StringUtil.makeQueryLike(email);
         return userQueryService.getAllUsers(name, email, active, pageable);
+    }
+
+    private void deactivateUser(User user) {
+        user.setIsActive(false);
+        User saved = userRepository.save(user);
+        eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
     }
 
     @Override
@@ -135,10 +150,9 @@ public class UserServiceImpl implements UserService {
             extraKeys = {"deletedUserId"}
     )
     public void deactivateUser(Long id) {
+        verifyAdmin();
         User user = userQueryService.getUser(id);
-        user.setIsActive(false);
-        User saved = userRepository.save(user);
-        eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
+        deactivateUser(user);
     }
 
     @Override
@@ -148,7 +162,18 @@ public class UserServiceImpl implements UserService {
             includeCurrentUser = true
     )
     public void deactivateMe() {
-        deactivateUser(authUtil.getCurrentUser().getId());
+        deactivateUser(authUtil.getCurrentUser());
+    }
+
+
+    private void checkEmailUniqueness(String email, Long currentUserId) {
+        Optional<User> existingUserOpt = userRepository.findByEmail(email);
+        if (existingUserOpt.isPresent()) {
+            User existingUser = existingUserOpt.get();
+            if (!existingUser.getId().equals(currentUserId)) {
+                throw exceptionUtil.duplicate("Email already exists");
+            }
+        }
     }
 
     @Override
@@ -158,19 +183,13 @@ public class UserServiceImpl implements UserService {
             extras = {"#id"},
             extraKeys = {"updatedUserId"}
     )
-    public UserResponse updateUser(UserUpdateRequest request, Long id) {
+    public UserResponse updateUser(UserAdminUpdateRequest request, Long id) {
+        verifyAdmin();
         User user = userQueryService.getUser(id);
         request = Sanitizer.sanitizeUserUpdateRequest(request);
-        if (!user.getEmail().equals(request.email()) && userRepository.existsByEmail(request.email())) {
-            throw exceptionUtil.duplicate("Email already exists");
-        }
-
-        if(authUtil.getCurrentUser().getRole() == Role.ADMIN) {
-            LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
-            user.setRole(request.role());
-        }
-        user.setName(request.name());
-        user.setEmail(request.email());
+        checkEmailUniqueness(request.email(), id);
+        LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
+        UserMapper.updateEntity(user, request);
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
@@ -181,34 +200,57 @@ public class UserServiceImpl implements UserService {
             action = "UPDATE_CURRENT_USER",
             includeCurrentUser = true
     )
-    public UserResponse updateMe(UserUpdateRequest request) {
-        return updateUser(request, authUtil.getCurrentUser().getId());
+    public UserResponse updateMe(UserSelfUpdateRequest request) {
+        User currentUser = authUtil.getCurrentUser();
+        request = Sanitizer.sanitizeUserUpdateRequest(request);
+        checkEmailUniqueness(request.email(), currentUser.getId());
+        UserMapper.updateEntity(currentUser, request);
+        User saved = userRepository.save(currentUser);
+        eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
+        return UserMapper.toResponse(saved);
+    }
+
+    private void patchNameAndEmail(User user, String name, String email) {
+        Optional.ofNullable(name)
+                .map(StringUtil::normalize)
+                .ifPresent(user::setName);
+        Optional.ofNullable(email)
+                .map(StringUtil::normalize)
+                .ifPresent( normalizedEmail -> {
+                    checkEmailUniqueness(normalizedEmail, user.getId());
+                    user.setEmail(normalizedEmail);
+                });
     }
 
     @Loggable(
             action = "PATCH_USER_PAYLOAD",
             level = DEBUG,
             message = "Applying patch to user",
-            extras = {"#user.getId()", "#request.name()", "#request.email()"},
-            extraKeys = {"userId", "name", "email"}
+            extras = {"#user.getId()", "#request.name()", "#request.email()", "#request.role()", "#request.isActive()"},
+            extraKeys = {"userId", "name", "email", "role", "isActive"}
     )
-    private void applyPatch(User user, UserPatchRequest request) {
-        Optional.ofNullable(request.name())
-                .map(StringUtil::normalize)
-                .ifPresent(user::setName);
-        Optional.ofNullable(request.email())
-                .map(StringUtil::normalize)
-
-                .ifPresent(email -> {
-                    if (!user.getEmail().equals(email) && userRepository.existsByEmail(email)) {
-                        throw exceptionUtil.duplicate("Email already exists");
+    private void applyPatch(User user, UserAdminPatchRequest request) {
+        patchNameAndEmail(user, request.name(), request.email());
+        Optional.ofNullable(request.role())
+                .ifPresent(role -> {
+                    if (user.getRole() != role) {
+                        LogUtil.log(log, WARN, "PATCH_USER_ROLE_CHANGE", "Patching user -> role change", "userId", user.getId(), "oldRole", user.getRole(), "newRole", role);
+                        user.setRole(role);
                     }
-                    user.setEmail(email);
+                });
+        Optional.ofNullable(request.isActive())
+                .ifPresent(isActive -> {
+                    if (user.getIsActive() != isActive) {
+                        LogUtil.log(log, WARN, "PATCH_USER_STATUS_CHANGE", "Patching user -> status change", "userId", user.getId(), "oldStatus", user.getIsActive(), "newStatus", isActive);
+                        user.setIsActive(isActive);
+                    }
                 });
     }
 
-    private void validatePatchRequest(UserPatchRequest request) {
-        if (request.name() == null && request.email() == null && request.role() == null) {
+
+
+    private void validatePatchRequest(UserAdminPatchRequest request) {
+        if (request.name() == null && request.email() == null && request.role() == null && request.isActive() == null) {
             throw exceptionUtil.badRequest("At least one field must be provided for patching");
         }
         if (StringUtil.isBlankButNotNull(request.name())) {
@@ -227,18 +269,37 @@ public class UserServiceImpl implements UserService {
             extras = {"#id"},
             extraKeys = {"userId"}
     )
-    public UserResponse patchUser(UserPatchRequest request, Long id) {
-        User currentUser = authUtil.getCurrentUser();
+    public UserResponse patchUser(UserAdminPatchRequest request, Long id) {
+        verifyAdmin();
         validatePatchRequest(request);
         User user = userQueryService.getUser(id);
         applyPatch(user, request);
-        if (currentUser.getRole()==Role.ADMIN && request.role() != null && user.getRole() != request.role()) {
-            LogUtil.log(log, WARN, "PATCH_USER_ROLE_CHANGE", "Patching user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
-            user.setRole(request.role());
-        }
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
         return UserMapper.toResponse(saved);
+    }
+
+    @Loggable(
+            action = "PATCH_USER_PAYLOAD",
+            level = DEBUG,
+            message = "Applying patch to user",
+            extras = {"#user.getId()", "#request.name()", "#request.email()"},
+            extraKeys = {"userId", "name", "email"}
+    )
+    private void applyPatch(User user, UserSelfPatchRequest request) {
+        patchNameAndEmail(user, request.name(), request.email());
+    }
+
+    private void validatePatchRequest(UserSelfPatchRequest request) {
+        if (request.name() == null && request.email() == null) {
+            throw exceptionUtil.badRequest("At least one field must be provided for patching");
+        }
+        if (StringUtil.isBlankButNotNull(request.name())) {
+            throw exceptionUtil.badRequest("Name cannot be blank");
+        }
+        if (StringUtil.isBlankButNotNull(request.email())) {
+            throw exceptionUtil.badRequest("Email cannot be blank");
+        }
     }
 
     @Override
@@ -246,8 +307,13 @@ public class UserServiceImpl implements UserService {
             action = "PATCH_CURRENT_USER",
             includeCurrentUser = true
     )
-    public UserResponse patchMe(UserPatchRequest request) {
-        return patchUser(request, authUtil.getCurrentUser().getId());
+    public UserResponse patchMe(UserSelfPatchRequest request) {
+        validatePatchRequest(request);
+        User currentUser = authUtil.getCurrentUser();
+        applyPatch(currentUser, request);
+        User saved = userRepository.save(currentUser);
+        eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));
+        return UserMapper.toResponse(saved);
     }
 
     @Override

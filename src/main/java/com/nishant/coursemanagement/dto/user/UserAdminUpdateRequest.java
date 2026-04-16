@@ -1,13 +1,13 @@
 package com.nishant.coursemanagement.dto.user;
 
-
+import com.nishant.coursemanagement.entity.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 
 @Builder
-public record UserRequest(
+public record UserAdminUpdateRequest(
         @NotBlank(message = "Name is required")
         String name,
 
@@ -15,8 +15,10 @@ public record UserRequest(
         @NotBlank(message = "Email is required")
         String email,
 
-        @NotBlank(message = "Password is required")
-        @Size(min = 8, message = "Password must be at least 8 characters")
-        String password
+        @NotNull(message = "Role is required")
+        Role role,
+
+        @NotNull(message = "Active status is required")
+        Boolean isActive
 ) {
 }

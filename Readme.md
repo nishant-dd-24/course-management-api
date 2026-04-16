@@ -25,18 +25,18 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 
 ## Features
 
-| Area               | Details                                                                                                  |
-|--------------------|----------------------------------------------------------------------------------------------------------|
-| **Auth**           | JWT-based authentication & authorization                                                                 |
-| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                |
-| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                  |
-| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                              |
-| **Rate Limiting**  | Role + endpoint-aware distributed token bucket limiting via Bucket4j + Redis (shared across instances)   |
-| **Caching**        | Two-level caching: Caffeine (L1, in-process) + Redis (L2, distributed) with cross-instance eviction sync |
-| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation               |
-| **Error Handling** | Global exception handler with consistent JSON error responses                                            |
-| **Validation**     | Input validation and sanitization across all endpoints                                                   |
-| **Testing**        | Service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseServiceTest`; full MockMvc integration tests for all three controllers with role-based, pagination, filtering, security, and concurrency scenarios |
+| Area               | Details                                                                                                                                                                                                                                            |
+|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Auth**           | JWT-based authentication & authorization                                                                                                                                                                                                           |
+| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                                                                                                                                                          |
+| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                                                                                                                                                            |
+| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                                                                                                                                                                        |
+| **Rate Limiting**  | Role + endpoint-aware distributed token bucket limiting via Bucket4j + Redis (shared across instances)                                                                                                                                             |
+| **Caching**        | Two-level caching: Caffeine (L1, in-process) + Redis (L2, distributed) with cross-instance eviction sync                                                                                                                                           |
+| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation                                                                                                                                                         |
+| **Error Handling** | Global exception handler with consistent JSON error responses                                                                                                                                                                                      |
+| **Validation**     | Input validation and sanitization across all endpoints                                                                                                                                                                                             |
+| **Testing**        | Service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseUnitTest`; full MockMvc integration tests for all three controllers with role-based, pagination, filtering, security, and concurrency scenarios |
 
 ---
 
@@ -167,10 +167,11 @@ Authorization: Bearer <jwt_token>
 {
   "name": "John Doe",
   "email": "john@example.com",
-  "password": "yourpassword",
-  "role": "STUDENT"
+  "password": "yourpassword"
 }
 ```
+
+`POST /users/register` always creates a user with role `STUDENT`.
 
 **Login response:**
 ```json
@@ -182,7 +183,8 @@ Authorization: Bearer <jwt_token>
     "id": 22,
     "name": "John Doe",
     "email": "john@example.com",
-    "role": "STUDENT"
+    "role": "STUDENT",
+    "isActive": true
   }
 }
 ```
@@ -206,30 +208,30 @@ Authorization: Bearer <jwt_token>
 
 **Query parameters for `GET /users`:**
 
-| Param    | Type    | Description                    |
-|----------|---------|--------------------------------|
-| `name`   | string  | Filter by name (partial match) |
-| `email`  | string  | Filter by email                |
-| `active` | boolean | Filter by active status        |
-| `page`   | int     | Page number (0-indexed)        |
-| `size`   | int     | Page size (default: 5)         |
-| `sort`   | string  | Sort field (default: `id`)     |
+| Param      | Type    | Description                    |
+|------------|---------|--------------------------------|
+| `name`     | string  | Filter by name (partial match) |
+| `email`    | string  | Filter by email                |
+| `isActive` | boolean | Filter by active status        |
+| `page`     | int     | Page number (0-indexed)        |
+| `size`     | int     | Page size (default: 5)         |
+| `sort`     | string  | Sort field (default: `id`)     |
 
 ---
 
 ### Courses
 
-| Method   | Endpoint                     | Role       | Description                                                    |
-|----------|------------------------------|------------|----------------------------------------------------------------|
-| `POST`   | `/courses`                   | INSTRUCTOR | Create a new course                                            |
-| `GET`    | `/courses`                   | ADMIN      | ADMIN only — list all courses (paginated, filterable)                       |
-| `GET`    | `/courses/{id}`              | ADMIN      | Get any course by ID                                           |
-| `GET`    | `/courses/active/{id}`       | Authenticated (no role restriction) | Get an active course by ID                                     |
-| `GET`    | `/courses/active`            | Authenticated (no role restriction) | Browse all active courses                                      |
-| `GET`    | `/courses/my`                | INSTRUCTOR | Get own courses                                                |
-| `PUT`    | `/courses/{id}`              | INSTRUCTOR | Updates title and description; `maxSeats` is updated only if provided (`null` retains existing value) |
-| `PATCH`  | `/courses/{id}`              | INSTRUCTOR | Partial update — any of: title, description, maxSeats (min: 1) |
-| `DELETE` | `/courses/{id}`              | INSTRUCTOR | Deactivate a course (soft delete)                              |
+| Method   | Endpoint               | Role                                | Description                                                                                           |
+|----------|------------------------|-------------------------------------|-------------------------------------------------------------------------------------------------------|
+| `POST`   | `/courses`             | INSTRUCTOR                          | Create a new course                                                                                   |
+| `GET`    | `/courses`             | ADMIN                               | ADMIN only — list all courses (paginated, filterable)                                                 |
+| `GET`    | `/courses/{id}`        | ADMIN                               | Get any course by ID                                                                                  |
+| `GET`    | `/courses/active/{id}` | Authenticated (no role restriction) | Get an active course by ID                                                                            |
+| `GET`    | `/courses/active`      | Authenticated (no role restriction) | Browse all active courses                                                                             |
+| `GET`    | `/courses/my`          | INSTRUCTOR                          | Get own courses                                                                                       |
+| `PUT`    | `/courses/{id}`        | INSTRUCTOR                          | Updates title and description; `maxSeats` is updated only if provided (`null` retains existing value) |
+| `PATCH`  | `/courses/{id}`        | INSTRUCTOR                          | Partial update — any of: title, description, maxSeats (min: 1)                                        |
+| `DELETE` | `/courses/{id}`        | INSTRUCTOR                          | Deactivate a course (soft delete)                                                                     |
 
 **Course response fields:**
 
@@ -252,7 +254,7 @@ Authorization: Bearer <jwt_token>
 | Param                  | Type    | Description                     |
 |------------------------|---------|---------------------------------|
 | `title`                | string  | Filter by title (partial match) |
-| `active`               | boolean | Filter by active status         |
+| `isActive`             | boolean | Filter by active status         |
 | `instructorId`         | long    | Filter by instructor            |
 | `page`, `size`, `sort` | —       | Standard pagination             |
 
@@ -266,6 +268,15 @@ Authorization: Bearer <jwt_token>
 | `DELETE` | `/enrollments/{courseId}` | STUDENT    | Unenroll from a course       |
 | `GET`    | `/enrollments/my`         | STUDENT    | Get own enrollments          |
 | `GET`    | `/enrollments/{id}`       | INSTRUCTOR | Get enrollments for a course |
+
+**Query parameters for `GET /enrollments/my` and `GET /enrollments/{id}`:**
+
+| Param      | Type    | Description                 |
+|------------|---------|-----------------------------|
+| `isActive` | boolean | Filter by active status     |
+| `page`     | int     | Page number (0-indexed)     |
+| `size`     | int     | Page size (default: `5`)    |
+| `sort`     | string  | Sort field (default: `id`)  |
 
 **Enrollment response fields:**
 
@@ -391,7 +402,7 @@ This means the database is only reached when neither cache level has a valid ent
 Keys are constructed by dedicated utility classes to ensure stability across requests:
 
 ```
-title=java|active=true|instructorId=1|page=0|size=5|sort=id:ASC
+title=java|isActive=true|instructorId=1|page=0|size=5|sort=id:ASC
 ```
 
 This prevents cache misses from input formatting differences (e.g., `%java%` vs `java`) and includes all pagination/sort parameters.
@@ -435,7 +446,7 @@ Optional<Course> findByIdForUpdate(@Param("courseId") Long courseId);
 
 Note: the `isActive = true` filter means attempting to enroll in an inactive course results in a `404 Not Found` rather than a seat-full error.
 
-A `DataIntegrityViolationException` catch provides an additional safety net at the database level for any duplicate enrollment attempts.
+`DataIntegrityViolationException` is handled by the global exception handler as a safety net for duplicate enrollment attempts under race conditions.
 
 **Trade-off:** Slightly reduced throughput under high concurrent enrollment on the same course, in exchange for strict seat-count correctness.
 
@@ -650,14 +661,14 @@ The result is a fast suite that validates business invariants independently of i
 **Service-layer unit tests** cover all three core command services:
 
 - `CourseUnitTests` — create, update, patch, deactivate; ownership validation (non-owner rejection); event publishing on mutations
-- `UserUnitTests` — create (including inactive-user reactivation), update, patch (including `patchMe` delegation), deactivate; password change; role-update ADMIN guard; event publishing
+- `UserUnitTests` — create (including inactive-user reactivation), update, patch (including `patchMe` flows), deactivate; password change; admin-guarded mutations; event publishing
 - `EnrollmentUnitTests` — enroll (new and reactivation paths), unenroll; seat availability and boundary conditions (zero seats, at-capacity); duplicate enrollment guard; `DataIntegrityViolationException` safety net; event publishing
 
 **Controller-layer integration tests** (MockMvc-based, with a real `SpringBootTest` context) cover all three controllers end-to-end:
 
-- `UserFlowIT` — registration, login (success, wrong password, inactive user), role-based access control, paginated listing, filtering by name/email/active, full update, partial update (with role-guard on non-admin paths), password change, and account deactivation
-- `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructor/active filtering with pagination, and soft deactivation
-- `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multi-threaded concurrency validation (see below)
+- `UserFlowIT` — registration, login (success, wrong password, inactive user), role-based access control, paginated listing, filtering by name/email/isActive, full update, partial update, password change, and account deactivation
+- `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructorId/isActive filtering with pagination, and soft deactivation
+- `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multithreaded concurrency validation (see below)
 
 ### Test structure
 
@@ -689,7 +700,7 @@ Integration tests additionally verify:
 
 - **HTTP-level behavior** — correct status codes, response shapes, and field values across all endpoints
 - **Role enforcement at the HTTP boundary** — `401 Unauthorized`, `403 Forbidden`, and ownership-based `404 Not Found` for non-owner mutations
-- **Pagination and filtering** — correct `content.length()`, `totalElements`, `pageNumber`, and `pageSize` fields; filter combinations (title + instructorId + active, name + email + active)
+- **Pagination and filtering** — correct `content.length()`, `totalElements`, `pageNumber`, and `pageSize` fields; filter combinations (title + instructorId + isActive, name + email + isActive)
 - **Concurrency correctness** — see [Concurrency Control](#concurrency-control)
 
 ### Test configuration
@@ -703,7 +714,7 @@ The project includes a dedicated `application-test.properties` for test defaults
 ### How to run
 
 ```bash
-./mvnw test
+./mvnw verify
 ```
 
 To run tests for a specific class:

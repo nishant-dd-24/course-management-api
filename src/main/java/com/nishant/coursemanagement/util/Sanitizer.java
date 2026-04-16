@@ -4,7 +4,8 @@ import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.dto.user.LoginRequest;
 import com.nishant.coursemanagement.dto.user.UserRequest;
-import com.nishant.coursemanagement.dto.user.UserUpdateRequest;
+import com.nishant.coursemanagement.dto.user.UserAdminUpdateRequest;
+import com.nishant.coursemanagement.dto.user.UserSelfUpdateRequest;
 
 public class Sanitizer {
     public static UserRequest sanitizeUserRequest(UserRequest request) {
@@ -15,19 +16,29 @@ public class Sanitizer {
                 .name(normalizedName)
                 .email(normalizedEmail)
                 .password(request.password())
-                .role(request.role())
                 .build();
     }
 
 
-    public static UserUpdateRequest sanitizeUserUpdateRequest(UserUpdateRequest request) {
+    public static UserAdminUpdateRequest sanitizeUserUpdateRequest(UserAdminUpdateRequest request) {
         String normalizedName = StringUtil.normalize(request.name());
         String normalizedEmail = StringUtil.normalize(request.email());
 
-        return UserUpdateRequest.builder()
+        return UserAdminUpdateRequest.builder()
                 .name(normalizedName)
                 .email(normalizedEmail)
                 .role(request.role())
+                .isActive(request.isActive())
+                .build();
+    }
+
+    public static UserSelfUpdateRequest sanitizeUserUpdateRequest(UserSelfUpdateRequest request) {
+        String normalizedName = StringUtil.normalize(request.name());
+        String normalizedEmail = StringUtil.normalize(request.email());
+
+        return UserSelfUpdateRequest.builder()
+                .name(normalizedName)
+                .email(normalizedEmail)
                 .build();
     }
 

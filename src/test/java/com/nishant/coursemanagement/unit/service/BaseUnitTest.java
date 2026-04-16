@@ -9,6 +9,7 @@ import com.nishant.coursemanagement.security.AuthUtil;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -55,6 +56,11 @@ public abstract class BaseUnitTest {
     protected void mockBadRequestException(String message) {
         when(exceptionUtil.badRequest(message))
                 .thenReturn( new CustomBadRequestException(message));
+    }
+
+    protected void mockAccessDeniedException(String message) {
+        when(exceptionUtil.accessDenied(message))
+                .thenReturn(new AccessDeniedException(message));
     }
 
     protected void verifyNoEventPublished() {

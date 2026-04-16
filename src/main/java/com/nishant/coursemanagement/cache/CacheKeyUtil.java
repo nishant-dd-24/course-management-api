@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 
 @Component
 public class CacheKeyUtil {
-    public static String buildCourseKey(String title, Boolean active, Long instructorId, Pageable pageable){
+    public static String buildCourseKey(String title, Boolean isActive, Long instructorId, Pageable pageable){
         String normalizedTitle = normalize(title);
 
         String sortKey = pageable.getSort().stream()
@@ -15,9 +15,9 @@ public class CacheKeyUtil {
                 .collect(Collectors.joining(","));
 
         return String.format(
-                "title=%s|active=%s|instructorId=%s|page=%d|size=%d|sort=%s",
+                "title=%s|isActive=%s|instructorId=%s|page=%d|size=%d|sort=%s",
                 normalizedTitle,
-                active,
+                isActive,
                 instructorId,
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
@@ -25,9 +25,9 @@ public class CacheKeyUtil {
         );
     }
 
-    public static String buildUserKey(String name, String email, Boolean active, Pageable pageable){
+    public static String buildUserKey(String name, String email, Boolean isActive, Pageable pageable){
 
-        boolean noFilter = (name == null && email == null && active == null);
+        boolean noFilter = (name == null && email == null && isActive == null);
 
         String normalizedName = normalize(name);
         String normalizedEmail = normalize(email);
@@ -37,11 +37,11 @@ public class CacheKeyUtil {
                 .collect(Collectors.joining(","));
 
         return String.format(
-                "type=%s|name=%s|email=%s|active=%s|page=%d|size=%d|sort=%s",
+                "type=%s|name=%s|email=%s|isActive=%s|page=%d|size=%d|sort=%s",
                 noFilter ? "all" : "filtered",
                 normalizedName,
                 normalizedEmail,
-                active,
+                isActive,
                 pageable.getPageNumber(),
                 pageable.getPageSize(),
                 sortKey
