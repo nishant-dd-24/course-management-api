@@ -2,11 +2,9 @@ package com.nishant.coursemanagement.integration.controller.user;
 
 import com.jayway.jsonpath.JsonPath;
 import com.nishant.coursemanagement.dto.user.*;
-import com.nishant.coursemanagement.integration.config.RedisTestConfig;
-import com.nishant.coursemanagement.integration.controller.BaseIntegrationTest;
+import com.nishant.coursemanagement.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -17,7 +15,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@Import(RedisTestConfig.class)
 class UserFlowIT extends BaseIntegrationTest {
 
 

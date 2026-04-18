@@ -14,7 +14,7 @@ import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 
 @Configuration
-@Profile("!test")
+@Profile({"!mock-redis"})
 public class Bucket4jConfig {
 
     @Bean

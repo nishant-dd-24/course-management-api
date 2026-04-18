@@ -1,7 +1,7 @@
 package com.nishant.coursemanagement.integration.controller.enrollment;
 
 import com.nishant.coursemanagement.entity.Enrollment;
-import com.nishant.coursemanagement.integration.controller.BaseIntegrationTest;
+import com.nishant.coursemanagement.integration.BaseIntegrationTest;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageRequest;
@@ -30,6 +30,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 
 public class EnrollmentFlowIT extends BaseIntegrationTest {
 

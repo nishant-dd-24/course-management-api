@@ -36,7 +36,7 @@ record RateLimitContext(String key, int limit) {
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@Profile("!test")
+@Profile("!mock-redis")
 public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final int ADMIN_LIMIT = 100;

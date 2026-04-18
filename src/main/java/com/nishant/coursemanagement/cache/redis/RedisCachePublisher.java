@@ -6,7 +6,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 @Service
-@Profile("!test")
+@Profile({"!mock-redis"})
 public class RedisCachePublisher {
 
     private static final String CHANNEL = "cache-evict";

@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-@Profile("!test")
+@Profile({"!mock-redis"})
 @RequiredArgsConstructor
 @Slf4j
 public class RedisCacheListener implements MessageListener {
@@ -38,7 +38,8 @@ public class RedisCacheListener implements MessageListener {
                 cache.evict(event.key());
             }
         } catch (Exception ex){
-            LogUtil.log(log, LogLevel.WARN, "CACHE_EVICTION_EVEN_FAILED", "Failed to process cache eviction event: " + ex.getMessage());
+            LogUtil.log(log, LogLevel.WARN, "CACHE_EVICTION_EVENT_FAILED",
+                    "Failed to process cache eviction event", "error", ex.getMessage());
         }
     }
 }

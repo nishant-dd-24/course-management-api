@@ -10,7 +10,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration
-@Profile("!test")
+@Profile({"!mock-redis"})
 public class RedisConfig {
 
     @Bean

@@ -82,9 +82,11 @@ public class CourseQueryService {
                 .orElseThrow(() -> exceptionUtil.notFound("Course not found"));
     }
 
-    @Cacheable(sync = true,
+    @Cacheable(
+            sync = true,
             value = "courses",
-            key = "@cacheKeyUtil.buildCourseKey(#title, #isActive, #instructorId, #pageable)"
+            key = "@cacheKeyUtil.buildCourseKey(#title, #isActive, #instructorId, #pageable)",
+            condition = "#pageable.pageNumber == 0 && #pageable.pageSize <= 50"
     )
     @Loggable(
             action = "QUERY_GET_ALL_COURSES",

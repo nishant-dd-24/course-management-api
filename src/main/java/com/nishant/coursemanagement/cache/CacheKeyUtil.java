@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 
 @Component
 public class CacheKeyUtil {
-    public static String buildCourseKey(String title, Boolean isActive, Long instructorId, Pageable pageable){
+    public String buildCourseKey(String title, Boolean isActive, Long instructorId, Pageable pageable){
         String normalizedTitle = normalize(title);
 
         String sortKey = pageable.getSort().stream()
@@ -25,7 +25,7 @@ public class CacheKeyUtil {
         );
     }
 
-    public static String buildUserKey(String name, String email, Boolean isActive, Pageable pageable){
+    public String buildUserKey(String name, String email, Boolean isActive, Pageable pageable){
 
         boolean noFilter = (name == null && email == null && isActive == null);
 

@@ -1,11 +1,16 @@
-package com.nishant.coursemanagement.integration.controller;
+package com.nishant.coursemanagement.integration;
 
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.entity.Enrollment;
 import com.nishant.coursemanagement.entity.Role;
+import com.nishant.coursemanagement.integration.config.TestContainerConfig;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.repository.enrollment.EnrollmentRepository;
+import org.springframework.cache.Cache;
+import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -23,9 +28,9 @@ import static com.nishant.coursemanagement.entity.Role.*;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 
 @SpringBootTest
-@ActiveProfiles("test")
-
-public abstract class BaseIntegrationTest {
+@ActiveProfiles({"test"})
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+public abstract class BaseIntegrationTest extends TestContainerConfig {
 
     @Autowired
     private WebApplicationContext context;
@@ -43,6 +48,12 @@ public abstract class BaseIntegrationTest {
 
     @Autowired
     protected EnrollmentRepository enrollmentRepository;
+
+    @Autowired
+    private CacheManager cacheManager;
+
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
 
     @Autowired
     protected JwtUtil jwtUtil;
@@ -68,13 +79,25 @@ public abstract class BaseIntegrationTest {
     protected Course dummyCourse;
     protected String token;
 
-
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders
                 .webAppContextSetup(context)
                 .apply(springSecurity())
                 .build();
+
+        cacheManager.getCacheNames().forEach(name -> {
+            Cache cache = cacheManager.getCache(name);
+            if (cache!=null) {
+                cache.clear();
+            }
+        });
+
+        if(redisTemplate != null){
+            redisTemplate.getConnectionFactory()
+                    .getConnection()
+                    .flushAll();
+        }
 
         enrollmentRepository.deleteAll();
         courseRepository.deleteAll();

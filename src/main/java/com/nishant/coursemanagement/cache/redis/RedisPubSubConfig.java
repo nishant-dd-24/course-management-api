@@ -8,7 +8,7 @@ import org.springframework.data.redis.listener.ChannelTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
 @Configuration
-@Profile("!test")
+@Profile({"!mock-redis"})
 public class RedisPubSubConfig {
 
     private static final String CHANNEL = "cache-evict";

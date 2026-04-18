@@ -16,7 +16,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.*;
 
 @Component
-@Profile("!test")
+@Profile("!mock-redis")
 @RequiredArgsConstructor
 @Slf4j
 public class UserCacheListener {
@@ -63,7 +63,8 @@ public class UserCacheListener {
                 key,
                 evictAll
         ));
-        LogUtil.log(log, INFO, "PUBLISHED_REDIS_CACHE_EVICT_EVENT", "", "cacheName: ", cacheName, "key: ", key, "evictAll: ", evictAll);
+        LogUtil.log(log, INFO, "PUBLISHED_REDIS_CACHE_EVICT_EVENT", "Published Redis cache eviction event",
+                "cacheName", cacheName, "key", key, "evictAll", evictAll);
     }
 
     private void logEmptyCache(String cacheName) {

@@ -60,7 +60,8 @@ public class UserQueryService {
     @Cacheable(
             sync = true,
             value = "users",
-            key = "@cacheKeyUtil.buildUserKey(#name, #email, #isActive, #pageable)"
+            key = "@cacheKeyUtil.buildUserKey(#name, #email, #isActive, #pageable)",
+            condition = "#pageable.pageNumber == 0 && #pageable.pageSize <= 50"
     )
     @Loggable(
             action = "QUERY_GET_ALL_USERS",

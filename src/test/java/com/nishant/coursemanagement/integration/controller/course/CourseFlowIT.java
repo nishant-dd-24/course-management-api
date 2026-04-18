@@ -4,7 +4,7 @@ import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
 import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.entity.Course;
-import com.nishant.coursemanagement.integration.controller.BaseIntegrationTest;
+import com.nishant.coursemanagement.integration.BaseIntegrationTest;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;

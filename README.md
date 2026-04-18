@@ -26,18 +26,18 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 
 ## Features
 
-| Area               | Details                                                                                                                                                                                                                                            |
-|--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Auth**           | JWT-based authentication with access + refresh tokens; Redis-backed session management; logout via access token blacklisting and refresh token deletion                                                                                            |
-| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                                                                                                                                                          |
-| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                                                                                                                                                            |
-| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                                                                                                                                                                        |
-| **Rate Limiting**  | Role + endpoint-aware distributed token bucket limiting via Bucket4j + Redis (shared across instances)                                                                                                                                             |
-| **Caching**        | Two-level caching: Caffeine (L1, in-process) + Redis (L2, distributed) with cross-instance eviction sync                                                                                                                                           |
-| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation                                                                                                                                                         |
-| **Error Handling** | Global exception handler with consistent JSON error responses                                                                                                                                                                                      |
-| **Validation**     | Input validation and sanitization across all endpoints                                                                                                                                                                                             |
-| **Testing**        | Service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseUnitTest`; full MockMvc integration tests for all three controllers with role-based, pagination, filtering, security, and concurrency scenarios |
+| Area               | Details                                                                                                                                                                                                                                                                     |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Auth**           | JWT-based authentication with access + refresh tokens; Redis-backed session management; logout via access token blacklisting and refresh token deletion                                                                                                                     |
+| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                                                                                                                                                                                   |
+| **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                                                                                                                                                                                     |
+| **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                                                                                                                                                                                                 |
+| **Rate Limiting**  | Role + endpoint-aware distributed token bucket limiting via Bucket4j + Redis (shared across instances)                                                                                                                                                                      |
+| **Caching**        | Two-level caching: Caffeine (L1, in-process) + Redis (L2, distributed) with cross-instance eviction sync                                                                                                                                                                    |
+| **Observability**  | Per-request trace IDs, MDC-based structured logging, annotation-driven log instrumentation                                                                                                                                                                                  |
+| **Error Handling** | Global exception handler with consistent JSON error responses                                                                                                                                                                                                               |
+| **Validation**     | Bean validation on request DTOs plus payload normalization/sanitization on user and course write flows                                                                                                                                                                      |
+| **Testing**        | Service-layer unit coverage (`CourseService`, `UserService`, `EnrollmentService`) with shared `BaseUnitTest`; MockMvc integration tests plus `CacheFlowIT`, backed by PostgreSQL + Redis Testcontainers, covering security, pagination, filtering, caching, and concurrency |
 
 ---
 
@@ -55,6 +55,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **Bucket4j Redis module** — distributed bucket storage via Lettuce `ProxyManager`
 - **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub, token blacklist, refresh token store
 - **PostgreSQL** — relational database
+- **Testcontainers** — PostgreSQL + Redis for integration tests
 - **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`) (authentication required via JWT)
 - **Logstash Logback Encoder** — structured JSON logging
 - **Lombok** — boilerplate reduction
@@ -119,12 +120,41 @@ cd course-management-api
 
 ### 2. Configure environment variables
 
+Runtime defaults defined in `src/main/resources/application.properties`:
+
+| Area            | Property                             | Default / Expected Value                     | Notes                                          |
+|-----------------|--------------------------------------|----------------------------------------------|------------------------------------------------|
+| Datasource      | `spring.datasource.url`              | `jdbc:postgresql://localhost:5432/course_db` | Override with `SPRING_DATASOURCE_URL`          |
+| Datasource      | `spring.datasource.username`         | `course_user`                                | Override with `SPRING_DATASOURCE_USERNAME`     |
+| Datasource      | `spring.datasource.password`         | required                                     | Provide via `SPRING_DATASOURCE_PASSWORD`       |
+| Redis           | `spring.data.redis.host`             | `localhost`                                  | Override with `SPRING_DATA_REDIS_HOST`         |
+| Redis           | `spring.data.redis.port`             | `6379`                                       | Override with `SPRING_DATA_REDIS_PORT`         |
+| JWT             | `app.jwt.secret`                     | required                                     | Provide Base64 secret via `JWT_SECRET`         |
+| JWT             | `app.jwt.expiration-seconds`         | `3600`                                       | Override with `JWT_EXPIRATION_SECONDS`         |
+| JWT             | `app.jwt.refresh-expiration-seconds` | `604800`                                     | Override with `JWT_REFRESH_EXPIRATION_SECONDS` |
+| Admin bootstrap | `app.admin.email`                    | `admin@example.com`                          | Override with `APP_ADMIN_EMAIL`                |
+| Admin bootstrap | `app.admin.password`                 | `admin123`                                   | Override with `APP_ADMIN_PASSWORD`             |
+| Admin bootstrap | `app.admin.name`                     | `Admin`                                      | Override with `APP_ADMIN_NAME`                 |
+
+Create the database/user first or override them through Spring environment variables:
+
+```sql
+CREATE USER course_user WITH PASSWORD 'your_db_password';
+CREATE DATABASE course_db OWNER course_user;
+```
+
 ```bash
 export SPRING_DATASOURCE_PASSWORD=your_db_password
+export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/course_db   # optional override
+export SPRING_DATASOURCE_USERNAME=course_user                              # optional override
+export SPRING_DATA_REDIS_HOST=localhost                                    # optional override
+export SPRING_DATA_REDIS_PORT=6379                                         # optional override
 export JWT_SECRET=$(echo -n "your_secret_key_min_32_chars" | base64)
 export JWT_EXPIRATION_SECONDS=3600
 export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ```
+
+`JWT_SECRET` must be a Base64-encoded secret with at least 32 raw bytes.
 
 ### 3. Run
 
@@ -133,6 +163,28 @@ export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ```
 
 The API starts at `http://localhost:8080`.
+
+### 4. Admin bootstrap
+
+`AdminInitializer` runs on startup and creates an `ADMIN` user if one does not already exist for the configured email.
+
+Configuration keys used by code:
+
+```properties
+app.admin.email=admin@example.com
+app.admin.password=admin123
+app.admin.name=Admin
+```
+
+These are already defined in `src/main/resources/application.properties`, so bootstrap is enabled by default. You can override via environment variables (Spring relaxed binding), for example:
+
+```bash
+export APP_ADMIN_EMAIL=admin@example.com
+export APP_ADMIN_PASSWORD=changeme
+export APP_ADMIN_NAME="Default Admin"
+```
+
+If a user with `app.admin.email` already exists, bootstrap is skipped. The operation is `@Transactional`.
 
 ---
 
@@ -175,6 +227,8 @@ Authorization: Bearer <access_token>
 
 `POST /users/register` always creates a user with role `STUDENT`.
 
+If the email already belongs to a soft-deleted user, registration reactivates that user instead of creating a second record.
+
 **Login response:**
 ```json
 {
@@ -212,6 +266,15 @@ No request body required. On success, the access token is blacklisted in Redis (
 
 ---
 
+### Operational Endpoints
+
+| Method | Endpoint            | Access        | Description        |
+|--------|---------------------|---------------|--------------------|
+| `GET`  | `/actuator/health`  | Authenticated | Health information |
+| `GET`  | `/actuator/info`    | Authenticated | Application info   |
+
+---
+
 ### Users
 
 | Method   | Endpoint                    | Role          | Description                            |
@@ -226,6 +289,12 @@ No request body required. On success, the access token is blacklisted in Redis (
 | `PATCH`  | `/users/my`                 | Authenticated | Partial update of own profile          |
 | `DELETE` | `/users/my`                 | Authenticated | Deactivate own account (soft delete)   |
 | `POST`   | `/users/my/change-password` | Authenticated | Change password                        |
+
+**User lifecycle notes:**
+
+- `DELETE /users/{id}` and `DELETE /users/my` are soft deletes: they set `isActive=false` rather than removing the row.
+- Registering an email that belongs to a soft-deleted user reactivates that user instead of inserting a new record.
+- Inactive users cannot log in; login returns `401 Unauthorized`.
 
 **Query parameters for `GET /users`:**
 
@@ -289,6 +358,12 @@ No request body required. On success, the access token is blacklisted in Redis (
 | `DELETE` | `/enrollments/{courseId}` | STUDENT    | Unenroll from a course       |
 | `GET`    | `/enrollments/my`         | STUDENT    | Get own enrollments          |
 | `GET`    | `/enrollments/{id}`       | INSTRUCTOR | Get enrollments for a course |
+
+**Enrollment lifecycle notes:**
+
+- `DELETE /enrollments/{courseId}` is a soft delete on the enrollment record: it sets `isActive=false` and decrements the course seat count.
+- `POST /enrollments/{courseId}` reactivates a previously inactive enrollment for the same student/course pair instead of creating a duplicate row.
+- An already active enrollment for the same student/course returns `409 Conflict`.
 
 **Query parameters for `GET /enrollments/my` and `GET /enrollments/{id}`:**
 
@@ -379,7 +454,7 @@ Client Request
 
 ### Logout Invalidation
 
-Logout (`POST /users/logout`) performs two operations atomically:
+Logout (`POST /users/logout`) performs two operations in sequence:
 
 1. Writes `blacklist:<accessToken>` to Redis with a TTL equal to the token's remaining validity window.
 2. If `X-Refresh-Token` is present in the request header, deletes `refresh:<refreshToken>` from Redis.
@@ -531,7 +606,7 @@ The concurrency guarantee is verified by `EnrollmentFlowIT` using two real concu
 - `shouldAllowOnlyLimitedEnrollments_whenConcurrentRequests` — asserts that exactly 2 requests succeed, that the active enrollment count in the database equals 2, and that `enrolledStudents` on the course reflects the correct value
 - `shouldRejectExcessEnrollments_whenConcurrentRequests` — asserts that exactly 2 requests succeed and that all remaining requests receive a 4xx error
 
-These tests run against H2 with real JPA pessimistic locking in place, giving confidence that the seat-boundary guarantee holds under actual concurrent load.
+These tests run against a PostgreSQL Testcontainer with real JPA pessimistic locking in place, giving confidence that the seat-boundary guarantee holds under actual concurrent load.
 
 ---
 
@@ -745,7 +820,9 @@ The result is a fast suite that validates business invariants independently of i
 
 ## Testing
 
-### What is covered
+### Unit Tests
+
+**What is covered**
 
 **Service-layer unit tests** cover all three core command services:
 
@@ -753,19 +830,34 @@ The result is a fast suite that validates business invariants independently of i
 - `UserUnitTests` — create (including inactive-user reactivation), update, patch (including `patchMe` flows), deactivate; password change; admin-guarded mutations; event publishing
 - `EnrollmentUnitTests` — enroll (new and reactivation paths), unenroll; seat availability and boundary conditions (zero seats, at-capacity); duplicate enrollment guard; `DataIntegrityViolationException` safety net; event publishing
 
-**Controller-layer integration tests** (MockMvc-based, with a real `SpringBootTest` context) cover all three controllers end-to-end:
-
-- `UserFlowIT` — registration, login (success, wrong password, inactive user), full authentication flow (access + refresh token issuance), token refresh behavior, logout invalidation (access token blacklist + refresh token deletion), cross-user logout isolation, malformed authorization header handling, blank refresh token safety, refresh token reuse, tampered token rejection, empty refresh token validation, full session lifecycle (login → access → refresh → logout → verify rejection), role-based access control, paginated listing, filtering by name/email/isActive, full update, partial update, password change, and account deactivation
-- `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructorId/isActive filtering with pagination, and soft deactivation
-- `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multithreaded concurrency validation (see below)
-
-### Test structure
+**Test structure**
 
 **Unit tests** extend a shared `BaseUnitTest`, which provides:
 
 - Pre-configured Mockito mocks for `AuthUtil`, `ApplicationEventPublisher`, and `ExceptionUtil`; each test class provides its own repository mocks
 - `buildUser(Long id)` and `buildUser(Long id, Role role)` fixture builders shared across all three test classes
 - Shared helpers: `captureEvent`, `captureEvents`, `verifyNoEventPublished`, `mockCurrentUser`, `mockNotFoundException`, `mockBadRequestException`
+
+**What is verified**
+
+Each unit test suite covers three categories:
+
+- **Repository interactions** — that the correct repository methods are called with the correct arguments (e.g. `save`, `existsByEmail`, `findByEmail`)
+- **Event publishing** — that domain events are published after mutating operations, which is the trigger for cache eviction
+- **Edge cases and failure scenarios** — not-found lookups, seat exhaustion, duplicate enrollments, unauthorized role changes, and other rejection paths
+
+### Integration Tests
+
+**What is covered**
+
+**Controller-layer integration tests** (MockMvc-based, with a real `SpringBootTest` context plus PostgreSQL and Redis Testcontainers) cover all three controllers end-to-end:
+
+- `UserFlowIT` — registration, login (success, wrong password, inactive user), full authentication flow (access + refresh token issuance), token refresh behavior, logout invalidation (access token blacklist + refresh token deletion), cross-user logout isolation, malformed authorization header handling, blank refresh token safety, refresh token reuse, tampered token rejection, empty refresh token validation, full session lifecycle (login → access → refresh → logout → verify rejection), role-based access control, paginated listing, filtering by name/email/isActive, full update, partial update, password change, and account deactivation
+- `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructorId/isActive filtering with pagination, and soft deactivation
+- `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multithreaded concurrency validation (see below)
+- `CacheFlowIT` — end-to-end cache verification for users list caching: L1 hit behavior, L1 miss→L2 hit behavior, write/update-driven eviction, stampede protection (`@Cacheable(sync = true)`), non-cached `page != 0` behavior, distinct cache keys for different filters, and updated data visibility after eviction
+
+**Test structure**
 
 **Integration tests** extend a shared `BaseIntegrationTest`, which provides:
 
@@ -777,13 +869,7 @@ The result is a fast suite that validates business invariants independently of i
 
 This keeps individual test classes focused on behavior assertions rather than setup noise.
 
-### What is verified
-
-Each unit test suite covers three categories:
-
-- **Repository interactions** — that the correct repository methods are called with the correct arguments (e.g. `save`, `existsByEmail`, `findByEmail`)
-- **Event publishing** — that domain events are published after mutating operations, which is the trigger for cache eviction
-- **Edge cases and failure scenarios** — not-found lookups, seat exhaustion, duplicate enrollments, unauthorized role changes, and other rejection paths
+**What is verified**
 
 Integration tests additionally verify:
 
@@ -798,17 +884,35 @@ Integration tests additionally verify:
 
 ### Test configuration
 
-The project includes a dedicated `application-test.properties` for test defaults. It uses:
+The repository contains two Spring test profiles and three Maven profiles, but the default integration suite is the `test` profile plus Testcontainers.
 
-- **H2 in-memory database** — no PostgreSQL instance required
-- **Caching disabled** (`spring.cache.type=none`) — no cache manager is registered at all; caching infrastructure is fully excluded from the test context
-- **Mocked Redis** — `RedisTestConfig` provides Mockito-mocked `RedisTemplate` and `ValueOperations` backed by an in-memory `ConcurrentHashMap`, supporting blacklist checks, refresh token validation, and session lifecycle assertions without requiring an external Redis server
-- **JWT fallback secret** — `app.jwt.secret=${JWT_SECRET:dGVzdC1zZWNyZXQtc2VjcmV0LXNlY3JldC1rZXktMTIzNDU2}` (base64-encoded), so no environment variable is required to run tests locally. Expiration also defaults via `app.jwt.expiration-seconds=${JWT_EXPIRATION_SECONDS:3600}`
+**Spring profiles**
+
+**`test` profile** (`application-test.properties`):
+
+- **JWT fallback secret** so tests run without setting `JWT_SECRET`
+- **PostgreSQL dialect + `create-drop` schema mode** for the test application context
+- `BaseIntegrationTest` extends `TestContainerConfig`, which starts **PostgreSQL 15** and **Redis 7** containers and injects their connection properties via `@DynamicPropertySource`
+- The active integration-test profile is `test` only; this is the path exercised by `./mvnw verify` and `./mvnw clean verify`
+- `RateLimitFilter` remains active in this setup because it is disabled only when the `mock-redis` profile is active
+
+**`mock-redis` profile** (`application-mock-redis.properties`):
+
+- **Caching disabled** (`spring.cache.type=none`)
+- **Redis repositories disabled**
+- Intended for alternate/local wiring where a mocked `RedisTemplate` is desirable; it is **not** the profile used by the default integration suite
+
+**Maven profiles** (`pom.xml`):
+
+- **`default`** and **`fast`** activate: `test,mock-redis`
+- **`real`** activates: `test`
+
+In practice, the integration tests pin `test` via `@ActiveProfiles`, so the verified path is the Testcontainers-backed PostgreSQL + Redis stack rather than the mock-Redis profile.
 
 ### How to run
 
 ```bash
-./mvnw verify
+./mvnw clean verify
 ```
 
 To run tests for a specific class:
@@ -817,9 +921,11 @@ To run tests for a specific class:
 ./mvnw test -Dtest=CourseUnitTests
 ./mvnw test -Dtest=UserUnitTests
 ./mvnw test -Dtest=EnrollmentUnitTests
-./mvnw test -Dtest=CourseFlowIT
-./mvnw test -Dtest=UserFlowIT
-./mvnw test -Dtest=EnrollmentFlowIT
+
+./mvnw -Dit.test=CourseFlowIT failsafe:integration-test failsafe:verify
+./mvnw -Dit.test=UserFlowIT failsafe:integration-test failsafe:verify
+./mvnw -Dit.test=EnrollmentFlowIT failsafe:integration-test failsafe:verify
+./mvnw -Dit.test=CacheFlowIT failsafe:integration-test failsafe:verify
 ```
 
 ---

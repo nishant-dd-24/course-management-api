@@ -207,7 +207,9 @@ public class UserServiceImpl implements UserService {
         User user = userQueryService.getUser(id);
         request = Sanitizer.sanitizeUserUpdateRequest(request);
         checkEmailUniqueness(request.email(), id);
-        LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
+        if (user.getRole() != request.role()) {
+            LogUtil.log(log, WARN, "UPDATE_USER_ROLE_CHANGE", "Updating user -> role change", "userId", id, "oldRole", user.getRole(), "newRole", request.role());
+        }
         UserMapper.updateEntity(user, request);
         User saved = userRepository.save(user);
         eventPublisher.publishEvent(new UserUpdatedEvent(saved.getId()));

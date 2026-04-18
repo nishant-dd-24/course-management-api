@@ -18,7 +18,7 @@ import tools.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import java.time.Duration;
 
 @Configuration
-@Profile("!test")
+@Profile({"!mock-redis"})
 public class CacheConfig {
 
     private static final Duration CACHE_TTL = Duration.ofMinutes(10);
