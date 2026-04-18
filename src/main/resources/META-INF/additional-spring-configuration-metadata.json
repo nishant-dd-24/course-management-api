@@ -10,6 +10,12 @@
       "type": "java.lang.Long",
       "description": "JWT expiration duration in seconds.",
       "defaultValue": 3600
+    },
+    {
+      "name": "app.jwt.refresh-expiration-seconds",
+      "type": "java.lang.Long",
+      "description": "Refresh token expiration duration in seconds.",
+      "defaultValue": 604800
     }
   ]
 }

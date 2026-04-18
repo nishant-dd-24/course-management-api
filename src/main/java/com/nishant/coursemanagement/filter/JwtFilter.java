@@ -11,6 +11,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -26,8 +28,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
+    private static final String BLACKLIST_PREFIX = "blacklist:";
+
     private final JwtUtil jwtUtil;
     private final CustomAuthenticationEntryPoint authenticationEntryPoint;
+    private final ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider;
 
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -45,8 +50,13 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
         String token = authHeader.substring(7);
+        RedisTemplate<String, Object> redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate != null && Boolean.TRUE.equals(redisTemplate.hasKey(BLACKLIST_PREFIX + token))) {
+            authenticationEntryPoint.commence(request, response, new JwtAuthenticationException("Invalid JWT Token"));
+            return;
+        }
         try {
-            if (!jwtUtil.isTokenValid(token)) {
+            if (jwtUtil.isTokenInvalid(token)) {
                 authenticationEntryPoint.commence(request, response, new JwtAuthenticationException("Invalid JWT Token"));
                 return;
             }
@@ -73,6 +83,8 @@ public class JwtFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return path.startsWith("/users/login") || path.startsWith("/users/register");
+        return path.startsWith("/users/login")
+                || path.startsWith("/users/register")
+                || path.startsWith("/users/refresh");
     }
 }

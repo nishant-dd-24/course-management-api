@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 import static com.nishant.coursemanagement.log.annotation.LogLevel.DEBUG;
 import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
@@ -25,6 +26,9 @@ import static com.nishant.coursemanagement.log.annotation.LogLevel.WARN;
 @Slf4j
 @RequiredArgsConstructor
 public class JwtUtil {
+
+    public static final String ACCESS_TOKEN_TYPE = "access";
+    public static final String REFRESH_TOKEN_TYPE = "refresh";
 
     private final JwtProperties jwtProperties;
     private SecretKey signingKey;
@@ -37,16 +41,34 @@ public class JwtUtil {
 
     @Loggable(
             action = "JWT_GENERATE_TOKEN",
-            extras = {"#email", "#role.name()"},
-            extraKeys = {"email", "role"},
+            extras = {"#id", "#role.name()"},
+            extraKeys = {"userId", "role"},
             level = DEBUG
     )
     public String generateToken(Long id, Role role) {
         return Jwts.builder()
                 .subject(String.valueOf(id))
                 .claim("role", role.name())
+                .claim("type", ACCESS_TOKEN_TYPE)
+                .claim("jti", UUID.randomUUID().toString())
                 .issuedAt(Date.from(Instant.now()))
                 .expiration(Date.from(Instant.now().plusSeconds(jwtProperties.getExpirationSeconds())))
+                .signWith(signingKey)
+                .compact();
+    }
+
+    @Loggable(
+            action = "JWT_GENERATE_REFRESH_TOKEN",
+            extras = {"#userId"},
+            extraKeys = {"userId"},
+            level = DEBUG
+    )
+    public String generateRefreshToken(Long userId) {
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim("type", REFRESH_TOKEN_TYPE)
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(jwtProperties.getRefreshExpirationSeconds())))
                 .signWith(signingKey)
                 .compact();
     }
@@ -71,13 +93,29 @@ public class JwtUtil {
             action = "JWT_VALIDATE_TOKEN",
             level = DEBUG
     )
-    public boolean isTokenValid(String token) {
+    public boolean isTokenInvalid(String token) {
         try {
-            return !extractAllClaims(token).getExpiration().before(Date.from(Instant.now()));
+            return extractAllClaims(token).getExpiration().before(Date.from(Instant.now()));
         } catch (Exception ex) {
-            LogUtil.log(log, WARN, "JWT_VALIDATE_TOKEN_FAILED", "Token validation failed");
-            return false;
+            LogUtil.log(log, WARN, "JWT_VALIDATE_TOKEN_FAILED", "Token validation failed", "error", ex.getMessage());
+            return true;
         }
+    }
+
+    @Loggable(
+            action = "JWT_EXTRACT_EXPIRATION",
+            level = DEBUG
+    )
+    public Instant extractExpiration(String token) {
+        return extractAllClaims(token).getExpiration().toInstant();
+    }
+
+    @Loggable(
+            action = "JWT_EXTRACT_TYPE",
+            level = DEBUG
+    )
+    public String extractType(String token) {
+        return extractAllClaims(token).get("type", String.class);
     }
 
     private Claims extractAllClaims(String token) {

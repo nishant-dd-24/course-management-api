@@ -6,7 +6,8 @@ import java.time.Instant;
 
 @Builder
 public record LoginResponse(
-        String token,
+        String accessToken,
+        String refreshToken,
         long expiresIn,
         Instant expiresAt,
         UserResponse user

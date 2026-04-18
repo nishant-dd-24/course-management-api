@@ -17,12 +17,15 @@ import com.nishant.coursemanagement.util.Sanitizer;
 import com.nishant.coursemanagement.util.StringUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -34,6 +37,9 @@ import static com.nishant.coursemanagement.log.annotation.LogLevel.*;
 @Slf4j
 public class UserServiceImpl implements UserService {
 
+    private static final String BLACKLIST_PREFIX = "blacklist:";
+    private static final String REFRESH_PREFIX = "refresh:";
+
     private final UserRepository userRepository;
     private final UserQueryService userQueryService;
     private final PasswordEncoder passwordEncoder;
@@ -42,6 +48,19 @@ public class UserServiceImpl implements UserService {
     private final AuthUtil authUtil;
     private final ExceptionUtil exceptionUtil;
     private final ApplicationEventPublisher eventPublisher;
+    private final ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider;
+
+    private RedisTemplate<String, Object> getRedisTemplateOrThrow() {
+        RedisTemplate<String, Object> redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate == null) {
+            throw new IllegalStateException("RedisTemplate is not configured");
+        }
+        return redisTemplate;
+    }
+
+    private boolean isRefreshToken(String token) {
+        return JwtUtil.REFRESH_TOKEN_TYPE.equals(jwtUtil.extractType(token));
+    }
 
     private void verifyAdmin() {
         if (authUtil.getCurrentUser().getRole() != Role.ADMIN) {
@@ -331,15 +350,82 @@ public class UserServiceImpl implements UserService {
         if (!passwordEncoder.matches(request.password(), user.getPassword())) {
             throw exceptionUtil.unauthorized("Invalid credentials");
         }
-        String token = jwtUtil.generateToken(user.getId(), user.getRole());
+        String accessToken = jwtUtil.generateToken(user.getId(), user.getRole());
+        String refreshToken = jwtUtil.generateRefreshToken(user.getId());
+        RedisTemplate<String, Object> redisTemplate = redisTemplateProvider.getIfAvailable();
+        if (redisTemplate != null) {
+            redisTemplate.opsForValue().set(
+                    REFRESH_PREFIX + refreshToken,
+                    user.getId(),
+                    Duration.ofSeconds(jwtProperties.getRefreshExpirationSeconds())
+            );
+        }
         UserResponse response = UserMapper.toResponse(user);
         long expiresIn = jwtProperties.getExpirationSeconds();
         Instant expiresAt = Instant.now().plusSeconds(expiresIn);
         return LoginResponse.builder()
-                .token(token)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
                 .expiresIn(expiresIn)
                 .expiresAt(expiresAt)
                 .user(response)
                 .build();
+    }
+
+    @Override
+    @Loggable(action = "REFRESH_TOKEN")
+    public LoginResponse refresh(String refreshToken) {
+        if (jwtUtil.isTokenInvalid(refreshToken) || !isRefreshToken(refreshToken)) {
+            throw exceptionUtil.unauthorized("Invalid JWT Token");
+        }
+
+        RedisTemplate<String, Object> redisTemplate = getRedisTemplateOrThrow();
+        Object cachedUserId = redisTemplate.opsForValue().get(REFRESH_PREFIX + refreshToken);
+        if (cachedUserId == null) {
+            throw exceptionUtil.unauthorized("Invalid JWT Token");
+        }
+
+        Long userId = Long.parseLong(cachedUserId.toString());
+        User user = userQueryService.getUser(userId);
+        if (!user.getIsActive()) {
+            throw exceptionUtil.unauthorized("Invalid JWT Token");
+        }
+
+        String accessToken = jwtUtil.generateToken(user.getId(), user.getRole());
+        long expiresIn = jwtProperties.getExpirationSeconds();
+        Instant expiresAt = Instant.now().plusSeconds(expiresIn);
+        return LoginResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresIn(expiresIn)
+                .expiresAt(expiresAt)
+                .user(UserMapper.toResponse(user))
+                .build();
+    }
+
+    @Override
+    @Loggable(action = "LOGOUT", includeCurrentUser = true)
+    public void logout(String accessToken) {
+        logout(accessToken, null);
+    }
+
+    @Override
+    @Loggable(action = "LOGOUT", includeCurrentUser = true)
+    public void logout(String accessToken, String refreshToken) {
+        if (jwtUtil.isTokenInvalid(accessToken)) {
+            throw exceptionUtil.unauthorized("Invalid JWT Token");
+        }
+
+        Duration ttl = Duration.between(Instant.now(), jwtUtil.extractExpiration(accessToken));
+        if (ttl.isNegative() || ttl.isZero()) {
+            throw exceptionUtil.unauthorized("Invalid JWT Token");
+        }
+
+        RedisTemplate<String, Object> redisTemplate = getRedisTemplateOrThrow();
+        redisTemplate.opsForValue().set(BLACKLIST_PREFIX + accessToken, Boolean.TRUE, ttl);
+
+        if (refreshToken != null && !refreshToken.isBlank()) {
+            redisTemplate.delete(REFRESH_PREFIX + refreshToken);
+        }
     }
 }

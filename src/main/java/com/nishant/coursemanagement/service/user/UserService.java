@@ -29,4 +29,10 @@ public interface UserService {
     PasswordChangeResponse changePassword(NewPasswordRequest request);
 
     LoginResponse login(LoginRequest request);
+
+    LoginResponse refresh(String refreshToken);
+
+    void logout(String token);
+
+    void logout(String token, String refreshToken);
 }

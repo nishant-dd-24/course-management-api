@@ -12,6 +12,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - [Getting Started](#getting-started)
 - [API Reference](#api-reference)
 - [Request Pipeline](#request-pipeline)
+- [Session Management](#session-management)
 - [Rate Limiting](#rate-limiting)
 - [Caching](#caching)
 - [Concurrency Control](#concurrency-control)
@@ -27,7 +28,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 
 | Area               | Details                                                                                                                                                                                                                                            |
 |--------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Auth**           | JWT-based authentication & authorization                                                                                                                                                                                                           |
+| **Auth**           | JWT-based authentication with access + refresh tokens; Redis-backed session management; logout via access token blacklisting and refresh token deletion                                                                                            |
 | **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT`                                                                                                                                                                                          |
 | **Courses**        | Full CRUD, pagination, filtering, search, seat tracking                                                                                                                                                                                            |
 | **Enrollments**    | Enroll/unenroll with seat validation and concurrency safety                                                                                                                                                                                        |
@@ -52,7 +53,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **JJWT 0.12.7** — JWT generation and validation
 - **Bucket4j** — token bucket rate limiting
 - **Bucket4j Redis module** — distributed bucket storage via Lettuce `ProxyManager`
-- **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub
+- **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub, token blacklist, refresh token store
 - **PostgreSQL** — relational database
 - **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`) (authentication required via JWT)
 - **Logstash Logback Encoder** — structured JSON logging
@@ -122,8 +123,7 @@ cd course-management-api
 export SPRING_DATASOURCE_PASSWORD=your_db_password
 export JWT_SECRET=$(echo -n "your_secret_key_min_32_chars" | base64)
 export JWT_EXPIRATION_SECONDS=3600
-export SPRING_REDIS_HOST=localhost
-export SPRING_REDIS_PORT=6379
+export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ```
 
 ### 3. Run
@@ -138,21 +138,23 @@ The API starts at `http://localhost:8080`.
 
 ## API Reference
 
-All endpoints except `/users/login` and `/users/register` require authentication via JWT.
+All endpoints except `/users/login`, `/users/register`, and `/users/refresh` require authentication via JWT.
 
 All protected endpoints require the header:
 ```
-Authorization: Bearer <jwt_token>
+Authorization: Bearer <access_token>
 ```
 
 ---
 
 ### Authentication
 
-| Method | Endpoint          | Access | Description                          |
-|--------|-------------------|--------|--------------------------------------|
-| `POST` | `/users/login`    | Public | Authenticate and receive a JWT token |
-| `POST` | `/users/register` | Public | Register a new user                  |
+| Method | Endpoint          | Access        | Description                                      |
+|--------|-------------------|---------------|--------------------------------------------------|
+| `POST` | `/users/login`    | Public        | Authenticate and receive access + refresh tokens |
+| `POST` | `/users/register` | Public        | Register a new user                              |
+| `POST` | `/users/refresh`  | Public        | Exchange a refresh token for a new access token  |
+| `POST` | `/users/logout`   | Authenticated | Invalidate the current access and refresh tokens |
 
 **Login request:**
 ```json
@@ -176,7 +178,8 @@ Authorization: Bearer <jwt_token>
 **Login response:**
 ```json
 {
-  "token": "eyJhbGciOiJIUzUxMiJ9...",
+  "accessToken": "eyJhbGciOiJIUzUxMiJ9...",
+  "refreshToken": "eyJhbGciOiJIUzUxMiJ9...",
   "expiresIn": 3600,
   "expiresAt": "2026-04-05T14:46:23.082550103Z",
   "user": {
@@ -188,6 +191,24 @@ Authorization: Bearer <jwt_token>
   }
 }
 ```
+
+**Refresh request:**
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzUxMiJ9..."
+}
+```
+
+Responds with a new `accessToken` and the same `refreshToken`. The refresh token remains valid in Redis and can be reused until it expires or is explicitly deleted via logout.
+
+**Logout request:**
+```
+POST /users/logout
+Authorization: Bearer <access_token>
+X-Refresh-Token: <refresh_token>   ← optional; if present, the refresh token is also invalidated
+```
+
+No request body required. On success, the access token is blacklisted in Redis (`blacklist:<token>`) and the refresh token, if provided, is deleted from Redis (`refresh:<token>`).
 
 ---
 
@@ -329,12 +350,65 @@ Client Request
          │
          ▼
 ┌─────────────────┐
-│   JWT Filter    │  Validates token, loads SecurityContext
-│                 │  (skips /users/login and /users/register)
+│   JWT Filter    │  Validates token signature and expiry; checks Redis blacklist
+│                 │  for invalidated access tokens; loads SecurityContext
+│                 │  (skips /users/login, /users/register, and /users/refresh)
 └────────┬────────┘
          │
          ▼
     Controller
+```
+
+---
+
+## Session Management
+
+### Access vs. Refresh Tokens
+
+| Property         | Access Token                           | Refresh Token                     |
+|------------------|----------------------------------------|-----------------------------------|
+| **Purpose**      | Authorizes individual API requests     | Obtains a new access token        |
+| **Lifetime**     | Short-lived (configurable, default 1h) | Long-lived (e.g. 7 days)          |
+| **Storage**      | Redis blacklist on logout              | Redis under `refresh:<token>` key |
+| **Invalidation** | Blacklisted at `blacklist:<token>`     | Deleted from Redis on logout      |
+
+### Redis Usage
+
+- **`blacklist:<accessToken>`** — written on logout; the JWT filter rejects any token whose key exists here, regardless of signature validity. The key TTL matches the token's remaining lifetime so it self-cleans.
+- **`refresh:<refreshToken>`** — written on login; deleted on logout (if `X-Refresh-Token` header is provided). Only tokens present in Redis are considered valid for the refresh flow, providing a server-side revocation point. Note: refreshing does not rotate the token — the same refresh token is returned and remains valid.
+
+### Logout Invalidation
+
+Logout (`POST /users/logout`) performs two operations atomically:
+
+1. Writes `blacklist:<accessToken>` to Redis with a TTL equal to the token's remaining validity window.
+2. If `X-Refresh-Token` is present in the request header, deletes `refresh:<refreshToken>` from Redis.
+
+After logout, any request bearing the old access token is rejected by the JWT filter at the blacklist check, before it reaches the controller.
+
+### Session Lifecycle
+
+```
+Login
+  └─► issue accessToken + store refreshToken in Redis
+        │
+        ▼
+  Authenticated requests (accessToken in Authorization header)
+        │
+        ├─► JWT filter: validate signature → check blacklist → load SecurityContext
+        │
+        ▼
+  Token expiry / proactive refresh
+        │
+        └─► POST /users/refresh with refreshToken
+              └─► validate refreshToken exists in Redis
+                    └─► issue new accessToken (same refreshToken is returned)
+                          │
+                          ▼
+                    Repeat authenticated request cycle
+Logout
+  └─► blacklist accessToken in Redis + delete refreshToken from Redis
+        └─► all subsequent requests with either token are rejected
 ```
 
 ---
@@ -532,7 +606,7 @@ Key points about the log structure:
 
 ## Error Handling
 
-All errors are handled by a global `@ControllerAdvice` and return a consistent JSON structure.
+All errors are handled by a global `@RestControllerAdvice` and return a consistent JSON structure.
 
 ### HTTP status codes
 
@@ -584,6 +658,21 @@ The `GlobalExceptionHandler` covers the equivalent cases that do reach the contr
 - Using email as the subject creates a window where a token issued before an email change still resolves to the wrong identity
 - `userId` maps directly to the primary key, so token validation never requires a secondary email lookup
 - Avoids any stale-identity issue during update flows where email and the in-flight token would temporarily be out of sync
+
+---
+
+### Why refresh tokens + Redis blacklist instead of pure stateless JWT?
+
+Pure stateless JWTs cannot be revoked before expiry. If an access token is stolen or a user logs out, the token remains valid until its `exp` claim passes — there is no server-side mechanism to invalidate it.
+
+The access + refresh token model with Redis backing addresses this directly:
+
+- **Short-lived access tokens** limit the exposure window for a compromised token. Even without revocation, the damage is bounded.
+- **Redis blacklist (`blacklist:<token>`)** provides true revocation on logout. The JWT filter checks this key on every request; a match results in a `401` regardless of signature validity. The key TTL is set to the token's remaining lifetime, so stale entries self-clean with no manual intervention.
+- **Server-tracked refresh tokens** (`refresh:<token>` in Redis) means only tokens the server knows about are accepted. The refresh endpoint validates the token against Redis and issues a new access token while returning the same refresh token. The refresh token is only deleted from Redis on explicit logout (via the `X-Refresh-Token` header), giving the server full control over session revocation.
+- **Server-side session control** — because refresh tokens are stored in Redis, individual sessions can be terminated server-side (e.g. forced logout, account deactivation) without waiting for token expiry.
+
+**Trade-off:** Each authenticated request now involves a Redis read (blacklist check), adding a sub-millisecond round-trip. This is the same overhead already present for rate limiting, and acceptable given the correctness guarantees in return.
 
 ---
 
@@ -666,7 +755,7 @@ The result is a fast suite that validates business invariants independently of i
 
 **Controller-layer integration tests** (MockMvc-based, with a real `SpringBootTest` context) cover all three controllers end-to-end:
 
-- `UserFlowIT` — registration, login (success, wrong password, inactive user), role-based access control, paginated listing, filtering by name/email/isActive, full update, partial update, password change, and account deactivation
+- `UserFlowIT` — registration, login (success, wrong password, inactive user), full authentication flow (access + refresh token issuance), token refresh behavior, logout invalidation (access token blacklist + refresh token deletion), cross-user logout isolation, malformed authorization header handling, blank refresh token safety, refresh token reuse, tampered token rejection, empty refresh token validation, full session lifecycle (login → access → refresh → logout → verify rejection), role-based access control, paginated listing, filtering by name/email/isActive, full update, partial update, password change, and account deactivation
 - `CourseFlowIT` — course creation (INSTRUCTOR only), ownership-guarded update and patch, full-coverage retrieval (admin vs. non-admin, own courses, active-only listing), title/instructorId/isActive filtering with pagination, and soft deactivation
 - `EnrollmentFlowIT` — enroll, unenroll, duplicate detection, full-course rejection, own enrollment retrieval, instructor-scoped course enrollments, unauthorized and role-invalid access, and multithreaded concurrency validation (see below)
 
@@ -681,7 +770,7 @@ The result is a fast suite that validates business invariants independently of i
 **Integration tests** extend a shared `BaseIntegrationTest`, which provides:
 
 - A `MockMvc` instance configured with full Spring Security support
-- Database reset and seed fixtures before each test: a `testUser` (INSTRUCTOR), a `testCourse`, and a pre-generated JWT token
+- Database reset and seed fixtures before each test: a `testUser` (INSTRUCTOR), a `testCourse`, and a pre-generated access token
 - Role-switching helpers: `setStudentToken()`, `setInstructorToken()`, `setAdminToken()`
 - Entity builders: `buildUser()`, `buildCourse()`, `buildEnrollment()`, and `buildThisManyUsers()` for pagination setup
 - `toJson()` serialization and a reusable `auth()` `RequestPostProcessor`
@@ -699,6 +788,10 @@ Each unit test suite covers three categories:
 Integration tests additionally verify:
 
 - **HTTP-level behavior** — correct status codes, response shapes, and field values across all endpoints
+- **Authentication flow** — login response includes both `accessToken` and `refreshToken`; token refresh returns a new valid pair; post-logout requests with the old access token are rejected with `401`
+- **Logout invalidation** — access token is blacklisted in Redis; refresh token is deleted; subsequent requests with either token are denied
+- **Refresh token behavior** — a valid refresh token issues a new access token (the same refresh token is returned and remains valid for reuse); an expired, unknown, or tampered refresh token is rejected; an empty refresh token is rejected with `400`
+- **Full session lifecycle** — login → authenticated requests → refresh → continued access → logout → rejection; validates the entire token lifecycle end-to-end
 - **Role enforcement at the HTTP boundary** — `401 Unauthorized`, `403 Forbidden`, and ownership-based `404 Not Found` for non-owner mutations
 - **Pagination and filtering** — correct `content.length()`, `totalElements`, `pageNumber`, and `pageSize` fields; filter combinations (title + instructorId + isActive, name + email + isActive)
 - **Concurrency correctness** — see [Concurrency Control](#concurrency-control)
@@ -709,6 +802,7 @@ The project includes a dedicated `application-test.properties` for test defaults
 
 - **H2 in-memory database** — no PostgreSQL instance required
 - **Caching disabled** (`spring.cache.type=none`) — no cache manager is registered at all; caching infrastructure is fully excluded from the test context
+- **Mocked Redis** — `RedisTestConfig` provides Mockito-mocked `RedisTemplate` and `ValueOperations` backed by an in-memory `ConcurrentHashMap`, supporting blacklist checks, refresh token validation, and session lifecycle assertions without requiring an external Redis server
 - **JWT fallback secret** — `app.jwt.secret=${JWT_SECRET:dGVzdC1zZWNyZXQtc2VjcmV0LXNlY3JldC1rZXktMTIzNDU2}` (base64-encoded), so no environment variable is required to run tests locally. Expiration also defaults via `app.jwt.expiration-seconds=${JWT_EXPIRATION_SECONDS:3600}`
 
 ### How to run

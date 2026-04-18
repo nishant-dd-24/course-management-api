@@ -21,9 +21,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -50,6 +54,15 @@ public class UserUnitTests extends BaseUnitTest {
 
     @Mock
     private JwtProperties jwtProperties;
+
+    @Mock
+    private ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider;
+
+    @Mock
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Mock
+    private ValueOperations<String, Object> valueOperations;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -81,7 +94,9 @@ public class UserUnitTests extends BaseUnitTest {
     private static final String PASSWORD_CHANGED = "Password successfully changed";
     private static final String EMAIL_ALREADY_EXISTS = "Email already exists";
     private static final String TOKEN = "jwt_token";
+    private static final String REFRESH_TOKEN = "refresh_token";
     private static final long EXPIRATION_SECONDS = 3600L;
+    private static final long REFRESH_EXPIRATION_SECONDS = 604800L;
     private static final String INVALID_CREDENTIALS = "Invalid credentials";
     private static final String FORBIDDEN = "Admin access required";
 
@@ -866,12 +881,17 @@ public class UserUnitTests extends BaseUnitTest {
             when(userQueryService.getUser(EMAIL)).thenReturn(user);
             when(passwordEncoder.matches(LOGIN_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
             when(jwtUtil.generateToken(user.getId(), STUDENT)).thenReturn(TOKEN);
+            when(jwtUtil.generateRefreshToken(user.getId())).thenReturn(REFRESH_TOKEN);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
             when(jwtProperties.getExpirationSeconds()).thenReturn(EXPIRATION_SECONDS);
+            when(jwtProperties.getRefreshExpirationSeconds()).thenReturn(REFRESH_EXPIRATION_SECONDS);
 
             LoginResponse response = userService.login(request);
 
             assertNotNull(response);
-            assertEquals(TOKEN, response.token());
+            assertEquals(TOKEN, response.accessToken());
+            assertEquals(REFRESH_TOKEN, response.refreshToken());
             assertEquals(EXPIRATION_SECONDS, response.expiresIn());
             assertNotNull(response.expiresAt());
             assertNotNull(response.user());
@@ -880,7 +900,11 @@ public class UserUnitTests extends BaseUnitTest {
             verify(userQueryService).getUser(EMAIL);
             verify(passwordEncoder).matches(LOGIN_PASSWORD, ENCODED_PASSWORD);
             verify(jwtUtil).generateToken(user.getId(), STUDENT);
+            verify(jwtUtil).generateRefreshToken(user.getId());
+            verify(redisTemplate).opsForValue();
+            verify(valueOperations).set(eq("refresh:" + REFRESH_TOKEN), eq(user.getId()), any(Duration.class));
             verify(jwtProperties).getExpirationSeconds();
+            verify(jwtProperties).getRefreshExpirationSeconds();
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
             verifyNoInteractions(authUtil);
@@ -916,6 +940,8 @@ public class UserUnitTests extends BaseUnitTest {
             when(userQueryService.getUser(EMAIL)).thenReturn(user);
             when(passwordEncoder.matches(LOGIN_PASSWORD, ENCODED_PASSWORD)).thenReturn(true);
             when(jwtUtil.generateToken(user.getId(), STUDENT)).thenReturn(TOKEN);
+            when(jwtUtil.generateRefreshToken(user.getId())).thenReturn(REFRESH_TOKEN);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(null);
             when(jwtProperties.getExpirationSeconds()).thenReturn(EXPIRATION_SECONDS);
 
             LoginResponse response = userService.login(request);
@@ -931,6 +957,7 @@ public class UserUnitTests extends BaseUnitTest {
             verify(userQueryService).getUser(EMAIL);
             verify(passwordEncoder).matches(LOGIN_PASSWORD, ENCODED_PASSWORD);
             verify(jwtUtil).generateToken(user.getId(), STUDENT);
+            verify(jwtUtil).generateRefreshToken(user.getId());
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
             verifyNoInteractions(authUtil);
@@ -952,6 +979,208 @@ public class UserUnitTests extends BaseUnitTest {
             verifyNoInteractions(passwordEncoder, jwtUtil, jwtProperties, authUtil);
             verify(userRepository, never()).save(any());
             verifyNoEventPublished();
+        }
+    }
+
+    @Nested
+    class RefreshTests {
+
+        @Test
+        void shouldRefreshAccessTokenSuccessfully() {
+            User user = buildUser(true, STUDENT);
+
+            when(jwtUtil.isTokenInvalid(REFRESH_TOKEN)).thenReturn(false);
+            when(jwtUtil.extractType(REFRESH_TOKEN)).thenReturn(JwtUtil.REFRESH_TOKEN_TYPE);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+            when(valueOperations.get("refresh:" + REFRESH_TOKEN)).thenReturn(user.getId());
+            when(userQueryService.getUser(user.getId())).thenReturn(user);
+            when(jwtUtil.generateToken(user.getId(), STUDENT)).thenReturn(TOKEN);
+            when(jwtProperties.getExpirationSeconds()).thenReturn(EXPIRATION_SECONDS);
+
+            LoginResponse response = userService.refresh(REFRESH_TOKEN);
+
+            assertNotNull(response);
+            assertEquals(TOKEN, response.accessToken());
+            assertEquals(REFRESH_TOKEN, response.refreshToken());
+            assertEquals(EXPIRATION_SECONDS, response.expiresIn());
+            assertNotNull(response.user());
+            assertEquals(EMAIL, response.user().email());
+            verify(valueOperations).get("refresh:" + REFRESH_TOKEN);
+            verify(jwtUtil).generateToken(user.getId(), STUDENT);
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenRefreshTokenInvalid() {
+            when(jwtUtil.isTokenInvalid(REFRESH_TOKEN)).thenReturn(true);
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.refresh(REFRESH_TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verifyNoInteractions(redisTemplateProvider, userQueryService);
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenRefreshTokenMissingInRedis() {
+            when(jwtUtil.isTokenInvalid(REFRESH_TOKEN)).thenReturn(false);
+            when(jwtUtil.extractType(REFRESH_TOKEN)).thenReturn(JwtUtil.REFRESH_TOKEN_TYPE);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+            when(valueOperations.get("refresh:" + REFRESH_TOKEN)).thenReturn(null);
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.refresh(REFRESH_TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verify(userQueryService, never()).getUser(any(Long.class));
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenUsingAccessTokenInRefresh() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractType(TOKEN)).thenReturn(JwtUtil.ACCESS_TOKEN_TYPE);
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.refresh(TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verifyNoInteractions(redisTemplateProvider, userQueryService);
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenUserInactiveDuringRefresh() {
+            User inactiveUser = buildUser(false, STUDENT);
+
+            when(jwtUtil.isTokenInvalid(REFRESH_TOKEN)).thenReturn(false);
+            when(jwtUtil.extractType(REFRESH_TOKEN)).thenReturn(JwtUtil.REFRESH_TOKEN_TYPE);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+            when(valueOperations.get("refresh:" + REFRESH_TOKEN)).thenReturn(inactiveUser.getId());
+            when(userQueryService.getUser(inactiveUser.getId())).thenReturn(inactiveUser);
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.refresh(REFRESH_TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verify(userQueryService).getUser(inactiveUser.getId());
+            verify(jwtUtil, never()).generateToken(any(Long.class), any(Role.class));
+        }
+
+        @Test
+        void shouldThrowException_whenRedisNotAvailableDuringRefresh() {
+            when(jwtUtil.isTokenInvalid(REFRESH_TOKEN)).thenReturn(false);
+            when(jwtUtil.extractType(REFRESH_TOKEN)).thenReturn(JwtUtil.REFRESH_TOKEN_TYPE);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(null);
+
+            IllegalStateException ex = assertThrows(
+                    IllegalStateException.class,
+                    () -> userService.refresh(REFRESH_TOKEN)
+            );
+
+            assertEquals("RedisTemplate is not configured", ex.getMessage());
+        }
+    }
+
+    @Nested
+    class LogoutTests {
+
+        @Test
+        void shouldBlacklistAccessTokenOnLogout() {
+            Instant expiration = Instant.now().plusSeconds(120);
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractExpiration(TOKEN)).thenReturn(expiration);
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+            userService.logout(TOKEN);
+
+            verify(valueOperations).set(eq("blacklist:" + TOKEN), eq(Boolean.TRUE), any(Duration.class));
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenLogoutWithInvalidToken() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(true);
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.logout(TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verifyNoInteractions(redisTemplateProvider);
+        }
+
+        @Test
+        void shouldThrowUnauthorized_whenTokenAlreadyExpiredDuringLogout() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractExpiration(TOKEN)).thenReturn(Instant.now().minusSeconds(1));
+            when(exceptionUtil.unauthorized("Invalid JWT Token"))
+                    .thenReturn(new UnauthorizedException("Invalid JWT Token"));
+
+            UnauthorizedException ex = assertThrows(
+                    UnauthorizedException.class,
+                    () -> userService.logout(TOKEN)
+            );
+
+            assertEquals("Invalid JWT Token", ex.getMessage());
+            verifyNoInteractions(redisTemplateProvider);
+        }
+
+        @Test
+        void shouldDeleteRefreshTokenOnLogout_whenProvided() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractExpiration(TOKEN)).thenReturn(Instant.now().plusSeconds(120));
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+            userService.logout(TOKEN, REFRESH_TOKEN);
+
+            verify(redisTemplate).delete("refresh:" + REFRESH_TOKEN);
+        }
+
+        @Test
+        void shouldNotDeleteRefreshToken_whenNotProvided() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractExpiration(TOKEN)).thenReturn(Instant.now().plusSeconds(120));
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(redisTemplate);
+            when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+
+            userService.logout(TOKEN, null);
+
+            verify(redisTemplate, never()).delete(anyString());
+        }
+
+        @Test
+        void shouldThrowException_whenRedisNotAvailableDuringLogout() {
+            when(jwtUtil.isTokenInvalid(TOKEN)).thenReturn(false);
+            when(jwtUtil.extractExpiration(TOKEN)).thenReturn(Instant.now().plusSeconds(120));
+            when(redisTemplateProvider.getIfAvailable()).thenReturn(null);
+
+            IllegalStateException ex = assertThrows(
+                    IllegalStateException.class,
+                    () -> userService.logout(TOKEN)
+            );
+
+            assertEquals("RedisTemplate is not configured", ex.getMessage());
         }
     }
 

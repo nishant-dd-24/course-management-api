@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class UserController {
 
+    private static final String BEARER_PREFIX = "Bearer ";
+
     private final UserService userService;
 
     @PostMapping("/register")
@@ -29,6 +31,12 @@ public class UserController {
     @ResponseStatus(HttpStatus.OK)
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return userService.login(request);
+    }
+
+    @PostMapping("/refresh")
+    @ResponseStatus(HttpStatus.OK)
+    public LoginResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        return userService.refresh(request.refreshToken());
     }
 
     @PreAuthorize("hasRole('ADMIN')")
@@ -98,6 +106,16 @@ public class UserController {
     @ResponseStatus(HttpStatus.OK)
     public PasswordChangeResponse passwordChange(@Valid @RequestBody NewPasswordRequest request) {
         return userService.changePassword(request);
+    }
+
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(@RequestHeader("Authorization") String authorizationHeader,
+                       @RequestHeader(value = "X-Refresh-Token", required = false) String refreshToken) {
+        if (!authorizationHeader.startsWith(BEARER_PREFIX)) {
+            throw new IllegalArgumentException("Invalid Authorization header");
+        }
+        userService.logout(authorizationHeader.substring(BEARER_PREFIX.length()), refreshToken);
     }
 
 
