@@ -181,8 +181,6 @@ docker compose up --build
 
 All three services are started and networked automatically via the compose file.
 
-> Current config note: `src/main/resources/application.properties` sets `server.port=8081`, while both compose files map `8080:8080` and production healthcheck probes `http://localhost:8080/actuator/health`. Keep this in mind when validating container startup.
-
 ### Development setup (hot reload)
 
 Uses a separate compose override optimized for local development:

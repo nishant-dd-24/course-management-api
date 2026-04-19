@@ -20,9 +20,10 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /root/course-management
+            cd /root/course-management-api
 
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
 
             docker compose down
-            docker compose up -d --build
+            docker compose up -d --build --remove-orphans
