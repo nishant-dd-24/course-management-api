@@ -2,6 +2,13 @@ services:
   postgres:
     image: postgres:15
     container_name: course-postgres
+    restart: unless-stopped
+    networks:
+      app-network:
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       POSTGRES_DB: course_db
       POSTGRES_USER: course_user
@@ -17,6 +24,13 @@ services:
   redis:
     image: redis:7
     container_name: course-redis
+    restart: unless-stopped
+    networks:
+      app-network:
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -25,7 +39,13 @@ services:
 
   app:
     build: .
-    container_name: course-app
+    restart: unless-stopped
+    networks:
+      app-network:
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,6 +68,15 @@ services:
       APP_ADMIN_EMAIL: ${APP_ADMIN_EMAIL}
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD}
       APP_ADMIN_NAME: ${APP_ADMIN_NAME}
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:

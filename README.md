@@ -57,7 +57,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - **Redis** — L2 cache, distributed rate limit state, cache eviction pub/sub, token blacklist, refresh token store
 - **PostgreSQL** — relational database
 - **Testcontainers** — PostgreSQL + Redis for integration tests
-- **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`) (authentication required via JWT)
+- **Spring Boot Actuator** — health and info endpoints (`/actuator/health`, `/actuator/info`) with `health` publicly accessible and other actuator endpoints restricted to `ADMIN`
 - **Logstash Logback Encoder** — structured JSON logging
 - **Lombok** — boilerplate reduction
 - **Maven** — build tool
@@ -134,7 +134,7 @@ Runtime defaults defined in `src/main/resources/application.properties`:
 | JWT             | `app.jwt.expiration-seconds`         | `3600`                                       | Override with `JWT_EXPIRATION_SECONDS`         |
 | JWT             | `app.jwt.refresh-expiration-seconds` | `604800`                                     | Override with `JWT_REFRESH_EXPIRATION_SECONDS` |
 | Admin bootstrap | `app.admin.email`                    | `admin@example.com`                          | Override with `APP_ADMIN_EMAIL`                |
-| Admin bootstrap | `app.admin.password`                 | `admin123`                                   | Override with `APP_ADMIN_PASSWORD`             |
+| Admin bootstrap | `app.admin.password`                 | `12345678`                                   | Override with `APP_ADMIN_PASSWORD`             |
 | Admin bootstrap | `app.admin.name`                     | `Admin`                                      | Override with `APP_ADMIN_NAME`                 |
 
 Create the database/user first or override them through Spring environment variables:
@@ -163,7 +163,7 @@ export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ./mvnw spring-boot:run
 ```
 
-The API starts at `http://localhost:8080`.
+The API starts at `http://localhost:8081` (from `server.port=8081` in `src/main/resources/application.properties`).
 
 ---
 
@@ -179,7 +179,9 @@ Starts the application, PostgreSQL, and Redis as a unified stack:
 docker compose up --build
 ```
 
-The API will be available at `http://localhost:8080`. All three services are started and networked automatically via the compose file.
+All three services are started and networked automatically via the compose file.
+
+> Current config note: `src/main/resources/application.properties` sets `server.port=8081`, while both compose files map `8080:8080` and production healthcheck probes `http://localhost:8080/actuator/health`. Keep this in mind when validating container startup.
 
 ### Development setup (hot reload)
 
@@ -194,6 +196,8 @@ This configuration:
 - Mounts your local source directory into the container so code changes are reflected without rebuilding the image
 - Enables **Spring DevTools** for automatic application restart on classpath changes
 - Reduces the feedback loop significantly compared to a full `docker build` cycle
+
+The development compose file has no app healthcheck; it still publishes `8080:8080`.
 
 ### Stopping containers
 
@@ -228,7 +232,7 @@ JWT_REFRESH_EXPIRATION_SECONDS=604800
 
 # Admin bootstrap
 APP_ADMIN_EMAIL=admin@example.com
-APP_ADMIN_PASSWORD=changeme
+APP_ADMIN_PASSWORD=12345678
 APP_ADMIN_NAME=Admin
 ```
 
@@ -244,7 +248,7 @@ Configuration keys used by code:
 
 ```properties
 app.admin.email=admin@example.com
-app.admin.password=admin123
+app.admin.password=12345678
 app.admin.name=Admin
 ```
 
@@ -262,7 +266,7 @@ If a user with `app.admin.email` already exists, bootstrap is skipped. The opera
 
 ## API Reference
 
-All endpoints except `/users/login`, `/users/register`, and `/users/refresh` require authentication via JWT.
+All endpoints except `/users/login`, `/users/register`, `/users/refresh`, and `/actuator/health` require authentication via JWT.
 
 All protected endpoints require the header:
 ```
@@ -342,8 +346,8 @@ No request body required. On success, the access token is blacklisted in Redis (
 
 | Method | Endpoint            | Access        | Description        |
 |--------|---------------------|---------------|--------------------|
-| `GET`  | `/actuator/health`  | Authenticated | Health information |
-| `GET`  | `/actuator/info`    | Authenticated | Application info   |
+| `GET`  | `/actuator/health`  | Public        | Health information |
+| `GET`  | `/actuator/info`    | ADMIN         | Application info   |
 
 ---
 
@@ -499,7 +503,8 @@ Client Request
 ┌─────────────────┐
 │   JWT Filter    │  Validates token signature and expiry; checks Redis blacklist
 │                 │  for invalidated access tokens; loads SecurityContext
-│                 │  (skips /users/login, /users/register, and /users/refresh)
+│                 │  (skips /users/login, /users/register, /users/refresh,
+│                 │   and /actuator/health)
 └────────┬────────┘
          │
          ▼
@@ -562,7 +567,7 @@ Logout
 
 ## Rate Limiting
 
-Rate limiting is implemented using **Bucket4j** (token bucket algorithm) backed by a **Redis `ProxyManager<String>`** via Lettuce. Buckets are stored in Redis, making rate limit state shared across all instances and persistent across restarts. Limits are resolved per-request based on two axes:
+Rate limiting is implemented using **Bucket4j** (token bucket algorithm) backed by a **Redis `ProxyManager<String>`** via Lettuce. Buckets are stored in Redis, making rate limit state shared across all instances and persistent across restarts. The filter is active for non-`mock-redis` profiles. Limits are resolved per-request based on two axes:
 
 ### Role-based limits (per minute)
 
@@ -631,6 +636,11 @@ This prevents cache misses from input formatting differences (e.g., `%java%` vs 
 ### What is cached
 
 Only **courses** and **users** are cached. Enrollment data is not cached directly, but enrollment mutations (enroll/unenroll) affect the `enrolledStudents` field on the `Course` entity — any enrollment change publishes an event that evicts the relevant course cache entries to prevent stale seat counts being served.
+
+Cache conditions on list endpoints are explicit in `@Cacheable`:
+
+- `page == 0`
+- `size <= 50`
 
 ### Cache eviction
 

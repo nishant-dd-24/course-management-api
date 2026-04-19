@@ -100,7 +100,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
         int endpointLimit = resolveEndpointLimit(request);
         if (path.startsWith("/users/login") ||
                 path.startsWith("/users/register") ||
-                path.startsWith("/users/refresh")) {
+                path.startsWith("/users/refresh") ||
+                path.startsWith("/actuator/health")) {
 
             return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, endpointLimit);
         }

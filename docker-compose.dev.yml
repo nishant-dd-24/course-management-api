@@ -2,6 +2,8 @@ services:
   postgres:
     image: postgres:15
     container_name: course-postgres
+    networks:
+      app-network:
     environment:
       POSTGRES_DB: course_db
       POSTGRES_USER: course_user
@@ -17,6 +19,8 @@ services:
   redis:
     image: redis:7
     container_name: course-redis
+    networks:
+      app-network:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -24,10 +28,11 @@ services:
       retries: 5
 
   app:
+    networks:
+      app-network:
     build:
       context: .
       dockerfile: Dockerfile.dev
-    container_name: course-app
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,3 +60,6 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
