@@ -42,11 +42,12 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            authenticationEntryPoint.commence(
-                    request,
-                    response,
-                    new JwtAuthenticationException("Missing JWT Token")
-            );
+//            authenticationEntryPoint.commence(
+//                    request,
+//                    response,
+//                    new JwtAuthenticationException("Missing JWT Token")
+//            );
+            filterChain.doFilter(request, response);
             return;
         }
         String token = authHeader.substring(7);

@@ -98,6 +98,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().replaceAll("/\\d+(?=/|$)", "/{id}");
         String method = request.getMethod();
         int endpointLimit = resolveEndpointLimit(request);
+        if (path.startsWith("/users/login") ||
+                path.startsWith("/users/register") ||
+                path.startsWith("/users/refresh")) {
+
+            return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, endpointLimit);
+        }
         if (auth != null && auth.startsWith("Bearer ")) {
             String token = auth.substring(7);
             try {
@@ -111,7 +117,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 int finalLimit = Math.min(roleLimit, endpointLimit);
                 return new RateLimitContext(id + ":" + role.name() + ":" + path + ":" + method, finalLimit);
             } catch (Exception e) {
-                LogUtil.log(log, WARN, "RATE_LIMIT_AUTH_ERROR", "Rate limit auth error", "message", e.getMessage());
+                LogUtil.log(log, DEBUG, "RATE_LIMIT_AUTH_ERROR", "Rate limit auth error", "message", e.getMessage());
                 int finalLimit = Math.min(ANONYMOUS_LIMIT, endpointLimit);
                 return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, finalLimit);
             }

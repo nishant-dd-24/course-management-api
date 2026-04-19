@@ -10,6 +10,7 @@ A well-structured REST API built with **Java 21** and **Spring Boot** for managi
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
 - [Getting Started](#getting-started)
+- [Docker Setup](#docker-setup)
 - [API Reference](#api-reference)
 - [Request Pipeline](#request-pipeline)
 - [Session Management](#session-management)
@@ -163,6 +164,77 @@ export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ```
 
 The API starts at `http://localhost:8080`.
+
+---
+
+## Docker Setup
+
+Docker is the recommended way to run the full stack locally. Both service dependencies (PostgreSQL and Redis) are managed automatically — no manual installation required.
+
+### Production setup
+
+Starts the application, PostgreSQL, and Redis as a unified stack:
+
+```bash
+docker compose up --build
+```
+
+The API will be available at `http://localhost:8080`. All three services are started and networked automatically via the compose file.
+
+### Development setup (hot reload)
+
+Uses a separate compose override optimized for local development:
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+This configuration:
+
+- Mounts your local source directory into the container so code changes are reflected without rebuilding the image
+- Enables **Spring DevTools** for automatic application restart on classpath changes
+- Reduces the feedback loop significantly compared to a full `docker build` cycle
+
+### Stopping containers
+
+```bash
+docker compose down
+```
+
+To also remove volumes (wipes the database):
+
+```bash
+docker compose down -v
+```
+
+### Environment variables
+
+Both compose files read from a `.env` file in the project root. Create one before starting:
+
+```env
+# Database
+SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/course_db
+SPRING_DATASOURCE_USERNAME=course_user
+SPRING_DATASOURCE_PASSWORD=your_db_password
+
+# Redis
+SPRING_DATA_REDIS_HOST=redis
+SPRING_DATA_REDIS_PORT=6379
+
+# JWT
+JWT_SECRET=your_base64_encoded_secret_min_32_chars
+JWT_EXPIRATION_SECONDS=3600
+JWT_REFRESH_EXPIRATION_SECONDS=604800
+
+# Admin bootstrap
+APP_ADMIN_EMAIL=admin@example.com
+APP_ADMIN_PASSWORD=changeme
+APP_ADMIN_NAME=Admin
+```
+
+> **Note:** Within the Docker network, the database and Redis hosts are the compose service names (`postgres`, `redis`) rather than `localhost`.
+
+---
 
 ### 4. Admin bootstrap
 
@@ -938,7 +1010,6 @@ The following are needed before this project could be considered production-read
 - [ ] Advanced input validation and edge-case hardening
 
 **Operability**
-- [ ] Dockerization + `docker-compose` setup (including Redis and PostgreSQL)
 - [ ] Prometheus metrics integration (Actuator already active)
 - [ ] Swagger / OpenAPI documentation
 
