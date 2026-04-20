@@ -94,7 +94,7 @@ jobs:
             docker compose -f $COMPOSE_FILE up -d --force-recreate --remove-orphans
 
             for i in {1..12}; do
-              if curl -f http://localhost:8080/actuator/health; then
+              if curl -f http://localhost:8080/actuator/health/readiness; then
                 exit 0
               fi
               sleep 5

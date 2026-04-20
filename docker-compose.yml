@@ -70,7 +70,7 @@ services:
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD}
       APP_ADMIN_NAME: ${APP_ADMIN_NAME}
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/actuator/health/liveness" ]
       interval: 10s
       timeout: 5s
       retries: 5
