@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -19,13 +19,27 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
+      - name: Build Docker image (versioned)
         run: |
-          docker build -t nishantdd/course-management-api:latest .
+          docker build -t nishantdd/course-management-api:${{ github.sha }} .
 
-      - name: Push Docker image
+      - name: Push versioned image
         run: |
+          docker push nishantdd/course-management-api:${{ github.sha }}
+
+      - name: Tag & push latest
+        run: |
+          docker tag nishantdd/course-management-api:${{ github.sha }} nishantdd/course-management-api:latest
           docker push nishantdd/course-management-api:latest
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: "/root/course-management-api"
 
       - name: Deploy on VPS
         uses: appleboy/ssh-action@v1.0.0
@@ -34,5 +48,7 @@ jobs:
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            export IMAGE_TAG=${{ github.sha }}
+
             docker compose -f /root/course-management-api/docker-compose.yml pull
-            docker compose -f /root/course-management-api/docker-compose.yml up -d --remove-orphans
+            docker compose -f /root/course-management-api/docker-compose.yml up -d --force-recreate --remove-orphans

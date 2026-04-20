@@ -163,7 +163,7 @@ export JWT_REFRESH_EXPIRATION_SECONDS=604800
 ./mvnw spring-boot:run
 ```
 
-The API starts at `http://localhost:8081` (from `server.port=8081` in `src/main/resources/application.properties`).
+The API starts at `http://localhost:8080`
 
 ---
 
