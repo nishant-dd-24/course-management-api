@@ -66,7 +66,7 @@ echo "Verifying after switch..."
 POST_SUCCESS=false
 
 for i in {1..10}; do
-  if curl -f http://localhost/actuator/health/readiness; then
+  if curl -k -f https://api.nishantdd.dev/actuator/health/readiness; then
     POST_SUCCESS=true
     break
   fi
