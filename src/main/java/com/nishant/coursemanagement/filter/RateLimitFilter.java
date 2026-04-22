@@ -105,6 +105,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 || path.startsWith("/actuator/health")
                 || path.startsWith("/swagger-ui")
                 || path.startsWith("/v3/api-docs")
+                || path.startsWith("/docs")
         ) {
 
             return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, endpointLimit);

@@ -48,6 +48,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                "/",
+                                "/docs",
                                 "/users/login",
                                 "/users/register",
                                 "/users/refresh",
