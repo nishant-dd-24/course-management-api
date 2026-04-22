@@ -2,12 +2,14 @@ package com.nishant.coursemanagement.service.enrollment;
 
 import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.enrollment.EnrollmentResponse;
+import com.nishant.coursemanagement.dto.enrollment.EnrollmentSearchRequest;
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.entity.Enrollment;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.enrollment.EnrollmentChangedEvent;
 import com.nishant.coursemanagement.exception.ExceptionUtil;
 import com.nishant.coursemanagement.mapper.EnrollmentMapper;
+import com.nishant.coursemanagement.mapper.PageableMapper;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.repository.enrollment.EnrollmentRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
@@ -94,27 +96,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Loggable(
             action = "GET_MY_ENROLLMENTS",
-            extras = {"#isActive"},
-            extraKeys = {"isActive"},
+            extras = {"#request.isActive()", "#request.page()", "#request.size()"},
+            extraKeys = {"isActive", "pageNumber", "pageSize"},
             includeCurrentUser = true
     )
-    public PageResponse<EnrollmentResponse> getMyEnrollments(Boolean active, Pageable pageable) {
+    public PageResponse<EnrollmentResponse> getMyEnrollments(EnrollmentSearchRequest request) {
         User currentUser = authUtil.getCurrentUser();
-        return enrollmentQueryService.findEnrollments(currentUser.getId(), null, active, pageable);
+        Pageable pageable = PageableMapper.toPageable(request);
+        return enrollmentQueryService.findEnrollments(currentUser.getId(), null, request.isActive(), pageable);
     }
 
     @Override
     @Loggable(
             action = "GET_ENROLLMENTS_BY_COURSE",
-            extras = {"#courseId", "#isActive"},
-            extraKeys = {"courseId", "isActive"},
+            extras = {"#courseId", "#request.isActive()", "#request.page()", "#request.size()"},
+            extraKeys = {"courseId", "isActive", "pageNumber", "pageSize"},
             includeCurrentUser = true
     )
-    public PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, Boolean active, Pageable pageable) {
+    public PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, EnrollmentSearchRequest request) {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getActiveCourse(courseId);
         validateCourseOwnership(course, currentUser);
-        return enrollmentQueryService.findEnrollments(null, courseId, active, pageable);
+        Pageable pageable = PageableMapper.toPageable(request);
+        return enrollmentQueryService.findEnrollments(null, courseId, request.isActive(), pageable);
     }
 
     @Override

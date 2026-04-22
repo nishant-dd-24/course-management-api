@@ -1,11 +1,7 @@
 package com.nishant.coursemanagement.service.course;
 
 import com.nishant.coursemanagement.dto.common.PageResponse;
-import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
-import com.nishant.coursemanagement.dto.course.CourseRequest;
-import com.nishant.coursemanagement.dto.course.CourseResponse;
-import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
-import org.springframework.data.domain.Pageable;
+import com.nishant.coursemanagement.dto.course.*;
 
 public interface CourseService {
 
@@ -15,11 +11,11 @@ public interface CourseService {
 
     CourseResponse getActiveCourse(Long id);
 
-    PageResponse<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable);
+    PageResponse<CourseResponse> getAllCourses(CourseSearchRequest request);
 
-    PageResponse<CourseResponse> getAllActiveCourses(String title, Long instructorId, Pageable pageable);
+    PageResponse<CourseResponse> getAllActiveCourses(CourseSearchRequest request);
 
-    PageResponse<CourseResponse> getMyCourses(String title, Boolean active, Pageable pageable);
+    PageResponse<CourseResponse> getMyCourses(CourseSearchRequest request);
 
     CourseResponse updateCourse(Long id, CourseUpdateRequest request);
 

@@ -14,8 +14,10 @@ src/main/java/com/nishant/coursemanagement/
 ├── service/         # Business logic (split into command + query services)
 ├── repository/      # Spring Data JPA repositories
 ├── entity/          # JPA entities (User, Course, Enrollment)
-├── dto/             # Request/response models and PageResponse wrapper
-├── mapper/          # Entity ↔ DTO conversion
+├── dto/             # Request/response models; SearchRequest DTOs with validation;
+│                    #   domain sort enums (UserSortBy, CourseSortBy, EnrollmentSortBy);
+│                    #   SortDirection enum; PageResponse wrapper
+├── mapper/          # Entity ↔ DTO conversion; PageableMapper (SearchRequest → Pageable)
 ├── exception/       # Custom exceptions, global handler, error response factory
 ├── security/        # JWT utilities, properties, auth helpers
 ├── filter/          # OncePerRequestFilter chain (Trace → RateLimit → JWT)

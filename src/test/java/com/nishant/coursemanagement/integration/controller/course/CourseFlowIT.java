@@ -5,10 +5,8 @@ import com.nishant.coursemanagement.dto.course.CourseRequest;
 import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.integration.BaseIntegrationTest;
-import com.nishant.coursemanagement.repository.course.CourseRepository;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.MediaType;
 
@@ -22,9 +20,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 
 public class CourseFlowIT extends BaseIntegrationTest {
-
-    @Autowired
-    private CourseRepository courseRepository;
 
     private static final String ROOT_ENDPOINT = "/courses";
     private static final String ACTIVE_ENDPOINT = ROOT_ENDPOINT + "/active";

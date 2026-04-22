@@ -92,6 +92,20 @@ Spring's `Page<T>` serialization is unstable between framework versions and expo
 
 ---
 
+## DTO-Based Search Requests over Spring `Pageable`
+
+All list endpoints accept a domain-specific `SearchRequest` DTO (e.g. `UserSearchRequest`, `CourseSearchRequest`, `EnrollmentSearchRequest`) via query parameters rather than relying on Spring's `Pageable` abstraction.
+
+**Reasoning:**
+- Spring's `Pageable` accepts a free-form `sort` string (e.g. `sort=createdAt,DESC`). This leaks internal field names into the public API contract and is impossible to validate at the framework level — any string is syntactically accepted, including nonsense values that fail silently or produce unexpected query behaviour.
+- `Pageable` cannot carry domain-specific filter fields (e.g. `name`, `title`, `isActive`) without a parallel, ad-hoc parameter binding that sits outside the type system.
+- DTO-based search requests are first-class Java types. Validation constraints (`@Min`, `@Max`, `@Size`, `@Email`) are declared directly on the record fields and enforced by `@Valid` before the query executes. Violations return `400 Bad Request` with a populated `errors` map, the same as any other validation failure.
+- Sorting is expressed through domain-specific enums (`UserSortBy`, `CourseSortBy`, `EnrollmentSortBy`). Each enum value maps to a specific database field internally via a `getField()` method. The API surface never exposes raw column names; callers select from a documented, closed set of values. Swagger UI renders these as dropdowns automatically.
+
+**Trade-off:** A thin `PageableMapper` translates each `SearchRequest` to a Spring `Pageable` for JPA consumption. This is an internal detail — the external contract is fully decoupled from Spring's internals.
+
+---
+
 ## Command / Query Service Split
 
 Each domain area separates read and write concerns into distinct service components:

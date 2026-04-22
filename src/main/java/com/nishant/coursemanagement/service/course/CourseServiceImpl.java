@@ -1,15 +1,13 @@
 package com.nishant.coursemanagement.service.course;
 
 import com.nishant.coursemanagement.dto.common.PageResponse;
-import com.nishant.coursemanagement.dto.course.CoursePatchRequest;
-import com.nishant.coursemanagement.dto.course.CourseRequest;
-import com.nishant.coursemanagement.dto.course.CourseResponse;
-import com.nishant.coursemanagement.dto.course.CourseUpdateRequest;
+import com.nishant.coursemanagement.dto.course.*;
 import com.nishant.coursemanagement.entity.Course;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.course.CourseUpdatedEvent;
 import com.nishant.coursemanagement.exception.ExceptionUtil;
 import com.nishant.coursemanagement.mapper.CourseMapper;
+import com.nishant.coursemanagement.mapper.PageableMapper;
 import com.nishant.coursemanagement.repository.course.CourseRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
 import com.nishant.coursemanagement.log.annotation.Loggable;
@@ -84,38 +82,42 @@ public class CourseServiceImpl implements CourseService {
     @Override
     @Loggable(
             action = "GET_ALL_COURSES",
-            extras = {"#title", "#isActive", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extras = {"#request.title()", "#request.isActive()", "#request.instructorId()", "#request.page()", "#request.size()"},
             extraKeys = {"title", "isActive", "instructorId", "pageNumber", "pageSize"},
             level = DEBUG
     )
-    public PageResponse<CourseResponse> getAllCourses(String title, Boolean active, Long instructorId, Pageable pageable) {
-        title = StringUtil.makeQueryLike(title);
-        return courseQueryService.getAllCourses(title, active, instructorId, pageable);
+    public PageResponse<CourseResponse> getAllCourses(CourseSearchRequest request) {
+        String title = StringUtil.makeQueryLike(request.title());
+        Pageable pageable = PageableMapper.toPageable(request);
+        return courseQueryService.getAllCourses(title, request.isActive(), request.instructorId(), pageable);
     }
 
     @Override
     @Loggable(
             action = "GET_ALL_ACTIVE_COURSES",
-            extras = {"#title", "#instructorId", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extras = {"#request.title()", "#request.instructorId()", "#request.page()", "#request.size()"},
             extraKeys = {"title", "instructorId", "pageNumber", "pageSize"},
             level = DEBUG
     )
-    public PageResponse<CourseResponse> getAllActiveCourses(String title, Long instructorId, Pageable pageable) {
-        title = StringUtil.makeQueryLike(title);
-        return courseQueryService.getAllCourses(title, true, instructorId, pageable);
+    public PageResponse<CourseResponse> getAllActiveCourses(CourseSearchRequest request) {
+        String title = StringUtil.makeQueryLike(request.title());
+        Pageable pageable = PageableMapper.toPageable(request);
+        return courseQueryService.getAllCourses(title, true, request.instructorId(), pageable);
     }
 
     @Override
     @Loggable(
             action = "GET_MY_COURSES",
-            extras = {"#title", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extras = {"#request.title()", "#request.isActive()", "#request.page()", "#request.size()"},
             extraKeys = {"title", "isActive", "pageNumber", "pageSize"},
             includeCurrentUser = true,
             level = DEBUG
     )
-    public PageResponse<CourseResponse> getMyCourses(String title, Boolean active, Pageable pageable) {
-        title = StringUtil.makeQueryLike(title);
-        return courseQueryService.getAllCourses(title, active, authUtil.getCurrentUser().getId(), pageable);
+    public PageResponse<CourseResponse> getMyCourses(CourseSearchRequest request) {
+        String title = StringUtil.makeQueryLike(request.title());
+        Long instructorId = authUtil.getCurrentUser().getId();
+        Pageable pageable = PageableMapper.toPageable(request);
+        return courseQueryService.getAllCourses(title, request.isActive(), instructorId, pageable);
     }
 
     @Override

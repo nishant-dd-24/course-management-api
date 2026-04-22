@@ -3,12 +3,11 @@ package com.nishant.coursemanagement.service.user;
 
 import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.user.*;
-import org.springframework.data.domain.Pageable;
 
 public interface UserService {
     UserResponse createUser(UserRequest request);
 
-    PageResponse<UserResponse> getAllUsers(String name, String email, Boolean active, Pageable pageable);
+    PageResponse<UserResponse> getAllUsers(UserSearchRequest request);
 
     UserResponse getUserById(Long id);
 

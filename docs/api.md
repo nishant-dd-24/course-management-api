@@ -2,7 +2,7 @@
 
 > Related: [session-management.md](session-management.md) | [request-flow.md](request-flow.md) | [error-handling.md](error-handling.md)
 
-All endpoints except `/users/login`, `/users/register`, `/users/refresh`, and `/actuator/health/**` require authentication via JWT.
+All endpoints except `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, and `/v3/api-docs/**` require authentication via JWT.
 
 All protected endpoints require the header:
 ```
@@ -91,8 +91,28 @@ No request body. On success, the access token is blacklisted in Redis (`blacklis
 |---|---|---|---|
 | `GET` | `/actuator/health` | Public | Health and readiness information |
 | `GET` | `/actuator/info` | Authenticated | Application info |
+| `GET` | `/swagger-ui/index.html` | Public | Interactive API documentation (Swagger UI) |
+| `GET` | `/v3/api-docs` | Public | Raw OpenAPI specification (JSON) |
 
 `/actuator/health/readiness` is used by the blue-green deployment script to validate new containers before traffic is switched. See [deployment.md](deployment.md).
+
+---
+
+## API Documentation
+
+Swagger UI is available at `/swagger-ui/index.html`. It provides an interactive interface for all endpoints, including:
+
+- Enum dropdowns for `sortBy` and `direction` parameters on all list endpoints
+- Validation constraints on all query and request body fields
+- Authentication support via the **Authorize** button
+
+The raw OpenAPI specification is available at `/v3/api-docs`.
+
+**To authorize in Swagger UI:**
+1. Log in via `POST /users/login` to obtain an `accessToken`.
+2. Click **Authorize** at the top of the Swagger UI page.
+3. Enter `Bearer <your_access_token>` in the value field.
+4. All subsequent requests made through the UI will include the token.
 
 ---
 
@@ -119,14 +139,31 @@ No request body. On success, the access token is blacklisted in Redis (`blacklis
 
 ### Query parameters for GET /users
 
-| Param | Type | Description |
-|---|---|---|
-| `name` | string | Filter by name (partial match) |
-| `email` | string | Filter by email |
-| `isActive` | boolean | Filter by active status |
-| `page` | int | Page number (0-indexed) |
-| `size` | int | Page size (default: 5) |
-| `sort` | string | Sort field (default: `id`) |
+List endpoints accept a `UserSearchRequest` DTO via query parameters. All fields are optional. Invalid values return `400 Bad Request` with a populated `errors` map.
+
+| Param | Type | Constraints | Description |
+|---|---|---|---|
+| `name` | string | Max 50 characters | Filter by name (partial match) |
+| `email` | string | Valid email format; max 100 characters | Filter by email |
+| `isActive` | boolean | — | Filter by active status |
+| `page` | integer | ≥ 0; default: `0` | Page number (0-indexed) |
+| `size` | integer | 1–50; default: `5` | Page size |
+| `sortBy` | `UserSortBy` | `ID`, `NAME`, `EMAIL`, `CREATED_AT` | Sort field (optional) |
+| `direction` | `SortDirection` | `ASC`, `DESC`; defaults to `ASC` only when `sortBy` is provided and `direction` is omitted | Sort direction |
+
+**Allowed `sortBy` values:**
+
+| Value | Maps to |
+|---|---|
+| `ID` | `id` |
+| `NAME` | `name` |
+| `EMAIL` | `email` |
+| `CREATED_AT` | `createdAt` |
+
+**Example:**
+```
+GET /users?name=john&isActive=true&page=0&size=10&sortBy=NAME&direction=ASC
+```
 
 ---
 
@@ -160,12 +197,30 @@ No request body. On success, the access token is blacklisted in Redis (`blacklis
 
 ### Query parameters for GET /courses
 
-| Param | Type | Description |
-|---|---|---|
-| `title` | string | Filter by title (partial match) |
-| `isActive` | boolean | Filter by active status |
-| `instructorId` | long | Filter by instructor |
-| `page`, `size`, `sort` | — | Standard pagination |
+List endpoints accept a `CourseSearchRequest` DTO via query parameters. All fields are optional. Invalid values return `400 Bad Request` with a populated `errors` map.
+
+| Param | Type | Constraints | Description |
+|---|---|---|---|
+| `title` | string | Max 100 characters | Filter by title (partial match) |
+| `isActive` | boolean | — | Filter by active status |
+| `instructorId` | long | Must be a positive value | Filter by instructor |
+| `page` | integer | ≥ 0; default: `0` | Page number (0-indexed) |
+| `size` | integer | 1–50; default: `5` | Page size |
+| `sortBy` | `CourseSortBy` | `ID`, `TITLE`, `CREATED_AT` | Sort field (optional) |
+| `direction` | `SortDirection` | `ASC`, `DESC`; defaults to `ASC` only when `sortBy` is provided and `direction` is omitted | Sort direction |
+
+**Allowed `sortBy` values:**
+
+| Value | Maps to |
+|---|---|
+| `ID` | `id` |
+| `TITLE` | `title` |
+| `CREATED_AT` | `createdAt` |
+
+**Example:**
+```
+GET /courses?title=java&isActive=true&page=0&size=5&sortBy=TITLE&direction=ASC
+```
 
 ---
 
@@ -195,16 +250,33 @@ No request body. On success, the access token is blacklisted in Redis (`blacklis
 
 ### Query parameters for GET /enrollments/my and GET /enrollments/{id}
 
-| Param | Type | Description |
-|---|---|---|
-| `isActive` | boolean | Filter by active status |
-| `page` | int | Page number (0-indexed) |
-| `size` | int | Page size (default: `5`) |
-| `sort` | string | Sort field (default: `id`) |
+List endpoints accept an `EnrollmentSearchRequest` DTO via query parameters. All fields are optional. Invalid values return `400 Bad Request` with a populated `errors` map.
+
+| Param | Type | Constraints | Description |
+|---|---|---|---|
+| `isActive` | boolean | — | Filter by active status |
+| `page` | integer | ≥ 0; default: `0` | Page number (0-indexed) |
+| `size` | integer | 1–50; default: `5` | Page size |
+| `sortBy` | `EnrollmentSortBy` | `ID`, `CREATED_AT` | Sort field (optional) |
+| `direction` | `SortDirection` | `ASC`, `DESC`; defaults to `ASC` only when `sortBy` is provided and `direction` is omitted | Sort direction |
+
+**Allowed `sortBy` values:**
+
+| Value | Maps to |
+|---|---|
+| `ID` | `id` |
+| `CREATED_AT` | `createdAt` |
+
+**Example:**
+```
+GET /enrollments/my?isActive=true&page=0&size=5&sortBy=CREATED_AT&direction=DESC
+```
 
 ---
 
 ## Pagination Response Envelope
+
+All list endpoints accept pagination and sort parameters via typed `SearchRequest` DTOs. The `page`, `size`, `sortBy`, and `direction` parameters are validated before the query executes — invalid values return `400 Bad Request`. Sorting is controlled by domain-specific enums (`UserSortBy`, `CourseSortBy`, `EnrollmentSortBy`) that map to internal database fields; the API surface never exposes raw column names or framework-internal sort syntax.
 
 All paginated endpoints return a consistent `PageResponse<T>` wrapper:
 
@@ -245,4 +317,4 @@ All errors return a consistent JSON structure regardless of which layer (Spring 
 }
 ```
 
-The `errors` map is populated only for `@Valid` validation failures. See [error-handling.md](error-handling.md) for the full status code reference and dual 401/403 handling.
+The `errors` map is populated only for `@Valid` validation failures — this includes both request body validation and `SearchRequest` DTO field violations (e.g. `page < 0`, `size > 50`, invalid email format). See [error-handling.md](error-handling.md) for the full status code reference and dual 401/403 handling.

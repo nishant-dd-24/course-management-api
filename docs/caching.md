@@ -41,10 +41,10 @@ The database is only reached when neither cache level has a valid entry.
 Keys are constructed by dedicated utility classes to ensure stability across requests. A representative course-list key:
 
 ```
-title=java|isActive=true|instructorId=1|page=0|size=5|sort=id:ASC
+title=java|isActive=true|instructorId=1|page=0|size=5|sort=title:ASC
 ```
 
-All pagination and sort parameters are included in the key. Input normalization is applied before key construction (e.g., leading/trailing wildcards are stripped before the key is built), preventing cache misses caused by equivalent queries with different raw input formatting.
+All pagination and filter inputs are included in the key. Sorting is included as the resolved pageable sort expression (`property:direction`), produced after `sortBy`/`direction` from the search DTO are mapped to an internal `Pageable`. Input normalization is applied before key construction (e.g., `%` is stripped from filter strings and text is lowercased/trimmed), preventing cache misses caused by equivalent queries with different raw input formatting.
 
 ---
 
@@ -55,7 +55,7 @@ Cache conditions on list endpoints are explicit in `@Cacheable`:
 - `page == 0`
 - `size <= 50`
 
-Requests for deeper pages or large page sizes bypass the cache and go directly to the database. This bounds the cache memory footprint to the most frequently accessed result sets.
+The upper bound on `size` aligns with the validation constraint on all `SearchRequest` DTOs (maximum 50), so in practice any valid request with `page == 0` qualifies for caching. Requests for deeper pages bypass the cache and go directly to the database. This bounds the cache memory footprint to the most frequently accessed result sets.
 
 ---
 

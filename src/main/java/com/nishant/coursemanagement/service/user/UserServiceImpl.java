@@ -7,6 +7,7 @@ import com.nishant.coursemanagement.dto.user.*;
 import com.nishant.coursemanagement.entity.User;
 import com.nishant.coursemanagement.event.events.user.UserUpdatedEvent;
 import com.nishant.coursemanagement.exception.ExceptionUtil;
+import com.nishant.coursemanagement.mapper.PageableMapper;
 import com.nishant.coursemanagement.mapper.UserMapper;
 import com.nishant.coursemanagement.repository.user.UserRepository;
 import com.nishant.coursemanagement.security.AuthUtil;
@@ -144,14 +145,21 @@ public class UserServiceImpl implements UserService {
             action = "GET_ALL_USERS",
             message = "Getting all users",
             level = DEBUG,
-            extras = {"#name", "#email", "#isActive", "#pageable.getPageNumber()", "#pageable.getPageSize()"},
+            extras = {
+                    "#request.name()",
+                    "#request.email()",
+                    "#request.isActive()",
+                    "#request.page()",
+                    "#request.size()"
+            },
             extraKeys = {"name", "email", "isActive", "pageNumber", "pageSize"}
     )
-    public PageResponse<UserResponse> getAllUsers(String name, String email, Boolean active, Pageable pageable) {
+    public PageResponse<UserResponse> getAllUsers(UserSearchRequest request) {
         verifyAdmin();
-        name = StringUtil.makeQueryLike(name);
-        email = StringUtil.makeQueryLike(email);
-        return userQueryService.getAllUsers(name, email, active, pageable);
+        String name = StringUtil.makeQueryLike(request.name());
+        String email = StringUtil.makeQueryLike(request.email());
+        Pageable pageable = PageableMapper.toPageable(request);
+        return userQueryService.getAllUsers(name, email, request.isActive(), pageable);
     }
 
     private void deactivateUser(User user) {

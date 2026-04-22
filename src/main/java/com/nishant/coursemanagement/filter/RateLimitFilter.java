@@ -98,10 +98,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String path = request.getRequestURI().replaceAll("/\\d+(?=/|$)", "/{id}");
         String method = request.getMethod();
         int endpointLimit = resolveEndpointLimit(request);
-        if (path.startsWith("/users/login") ||
-                path.startsWith("/users/register") ||
-                path.startsWith("/users/refresh") ||
-                path.startsWith("/actuator/health")) {
+        if (
+                path.startsWith("/users/login")
+                || path.startsWith("/users/register")
+                || path.startsWith("/users/refresh")
+                || path.startsWith("/actuator/health")
+                || path.startsWith("/swagger-ui")
+                || path.startsWith("/v3/api-docs")
+        ) {
 
             return new RateLimitContext(request.getRemoteAddr() + ":" + path + ":" + method, endpointLimit);
         }

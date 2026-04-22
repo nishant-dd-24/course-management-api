@@ -2,14 +2,14 @@ package com.nishant.coursemanagement.service.enrollment;
 
 import com.nishant.coursemanagement.dto.common.PageResponse;
 import com.nishant.coursemanagement.dto.enrollment.EnrollmentResponse;
-import org.springframework.data.domain.Pageable;
+import com.nishant.coursemanagement.dto.enrollment.EnrollmentSearchRequest;
 
 public interface EnrollmentService {
     EnrollmentResponse enroll(Long courseId);
 
-    PageResponse<EnrollmentResponse> getMyEnrollments(Boolean active, Pageable pageable);
+    PageResponse<EnrollmentResponse> getMyEnrollments(EnrollmentSearchRequest request);
 
-    PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, Boolean active, Pageable pageable);
+    PageResponse<EnrollmentResponse> getEnrollmentsByCourse(Long courseId, EnrollmentSearchRequest request);
 
     void unenroll(Long courseId);
 }

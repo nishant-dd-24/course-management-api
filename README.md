@@ -176,7 +176,7 @@ The deploy script handles the full blue-green cutover sequence with built-in rol
 
 ## API Overview
 
-All endpoints except `/users/login`, `/users/register`, `/users/refresh`, and `/actuator/health/**` require:
+All endpoints except `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, and `/v3/api-docs/**` require:
 
 ```
 Authorization: Bearer <access_token>
@@ -188,9 +188,15 @@ Authorization: Bearer <access_token>
 | Users | `GET|PUT|PATCH|DELETE /users`, `/users/{id}`, `/users/my` |
 | Courses | `GET|POST|PUT|PATCH|DELETE /courses`, `/courses/active`, `/courses/my` |
 | Enrollments | `POST|DELETE /enrollments/{courseId}`, `GET /enrollments/my`, `GET /enrollments/{id}` |
-| Ops | `GET /actuator/health/**` (public), `/actuator/info` (authenticated) |
+| Ops | `GET /actuator/health/**` (public), `/actuator/info` (authenticated), `/swagger-ui/index.html` (public), `/v3/api-docs` (public) |
 
 Full request/response schemas, role requirements, query parameters, and lifecycle notes: [docs/api.md](docs/api.md)
+
+### Swagger / OpenAPI
+
+- Swagger UI: `/swagger-ui/index.html`
+- OpenAPI JSON: `/v3/api-docs`
+- For protected endpoints in Swagger, authorize with `Bearer <access_token>`
 
 ---
 
@@ -234,7 +240,6 @@ Coverage spans service-layer unit tests (mocked dependencies, event publishing a
 ## Roadmap
 
 - [ ] Prometheus metrics integration (Actuator already active)
-- [ ] Swagger / OpenAPI documentation
 - [ ] Database indexing and query analysis for larger datasets
 - [ ] OpenTelemetry distributed tracing integration
 - [ ] API abuse detection and alerting
