@@ -103,7 +103,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     public PageResponse<EnrollmentResponse> getMyEnrollments(EnrollmentSearchRequest request) {
         User currentUser = authUtil.getCurrentUser();
         Pageable pageable = PageableMapper.toPageable(request);
-        return enrollmentQueryService.findEnrollments(currentUser.getId(), null, request.isActive(), pageable);
+        return enrollmentQueryService.findEnrollments(currentUser.getId(), null, true, pageable);
     }
 
     @Override

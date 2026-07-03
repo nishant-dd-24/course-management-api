@@ -139,4 +139,18 @@ public class CourseController {
         courseService.deactivateCourse(id);
     }
 
+    @PreAuthorize("hasRole('INSTRUCTOR')")
+    @PostMapping("/{id:\\d+}/activate")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(summary = "Activate course", description = "Reactivate a course (INSTRUCTOR only)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Course activated"),
+            @ApiResponse(responseCode = "401", description = "Unauthorized"),
+            @ApiResponse(responseCode = "403", description = "Forbidden"),
+            @ApiResponse(responseCode = "404", description = "Course not found")
+    })
+    public void activate(@PathVariable Long id) {
+        courseService.activateCourse(id);
+    }
+
 }

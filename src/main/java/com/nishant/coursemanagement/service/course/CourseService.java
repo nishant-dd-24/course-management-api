@@ -22,4 +22,6 @@ public interface CourseService {
     CourseResponse patchCourse(Long id, CoursePatchRequest request);
 
     void deactivateCourse(Long id);
+
+    void activateCourse(Long id);
 }

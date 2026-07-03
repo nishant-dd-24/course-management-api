@@ -188,6 +188,12 @@ public class CourseServiceImpl implements CourseService {
         return CourseMapper.toResponse(saved);
     }
 
+    private void updateCourseStatus(Course course, boolean isActive) {
+        course.setIsActive(isActive);
+        Course saved = courseRepository.save(course);
+        eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
+    }
+
     @Override
     @Loggable(
             action = "DEACTIVATE_COURSE",
@@ -200,8 +206,21 @@ public class CourseServiceImpl implements CourseService {
         User currentUser = authUtil.getCurrentUser();
         Course course = courseQueryService.getCourseById(id);
         validateCourseOwnership(course, currentUser);
-        course.setIsActive(false);
-        Course saved = courseRepository.save(course);
-        eventPublisher.publishEvent(new CourseUpdatedEvent(saved.getId()));
+        updateCourseStatus(course, false);
+    }
+
+    @Override
+    @Loggable(
+            action = "ACTIVATE_COURSE",
+            extras = {"#id"},
+            extraKeys = {"courseId"},
+            includeCurrentUser = true,
+            level = WARN
+    )
+    public void activateCourse(Long id) {
+        User currentUser = authUtil.getCurrentUser();
+        Course course = courseQueryService.getCourseById(id);
+        validateCourseOwnership(course, currentUser);
+        updateCourseStatus(course, true);
     }
 }
