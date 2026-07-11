@@ -30,10 +30,6 @@ export IMAGE_TAG_${TARGET^^}=$NEW_TAG
 
 docker compose -f $COMPOSE_FILE --profile $TARGET up -d app-$TARGET
 
-if ! docker ps --format '{{.Names}}' | grep -q '^course-nginx$'; then
-  docker compose up -d nginx
-fi
-
 echo "Waiting for app readiness..."
 
 SUCCESS=false
@@ -57,6 +53,10 @@ fi
 echo "Switching traffic..."
 
 sed -i "s|app-$OLD|app-$TARGET|" $NGINX_CONF
+
+echo "Recreating nginx..."
+
+docker compose up -d --force-recreate --no-deps nginx
 
 docker exec course-nginx nginx -t
 docker exec course-nginx nginx -s reload
