@@ -42,6 +42,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -56,13 +71,22 @@ jobs:
         run: |
           docker push nishantdd/course-management-api:${{ github.sha }}
 
-      - name: Copy docker-compose.yml to server
+      - name: Remove previous frontend build
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            rm -rf /root/course-management-api/frontend/dist
+
+      - name: Copy infra files to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SERVER_IP }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "docker-compose.yml,nginx.conf,scripts/*"
+          source: "docker-compose.yml,nginx.conf,scripts/*,frontend/dist"
           target: "/root/course-management-api"
 
       - name: Deploy on VPS
