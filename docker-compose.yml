@@ -49,6 +49,19 @@ services:
     volumes:
         - ./nginx.conf:/etc/nginx/nginx.conf:ro
         - /etc/letsencrypt:/etc/nginx/ssl:ro
+        - ./certbot-www:/var/www/certbot:ro
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: course-certbot
+    restart: "no"
+
+    networks:
+      - app-network
+
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - ./certbot-www:/var/www/certbot
 
   app-blue:
     image: nishantdd/course-management-api:${IMAGE_TAG_BLUE:-latest}
