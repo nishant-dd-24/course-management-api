@@ -2,7 +2,7 @@
 
 > Related: [session-management.md](session-management.md) | [request-flow.md](request-flow.md) | [error-handling.md](error-handling.md)
 
-All endpoints except `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, and `/v3/api-docs/**` require authentication via JWT.
+All endpoints except `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/`, and `/docs` require authentication via JWT.
 
 All protected endpoints require the header:
 ```
@@ -180,6 +180,7 @@ GET /users?name=john&isActive=true&page=0&size=10&sortBy=NAME&direction=ASC
 | `PUT` | `/courses/{id}` | INSTRUCTOR | Full update; `maxSeats` retained if not provided |
 | `PATCH` | `/courses/{id}` | INSTRUCTOR | Partial update — any of: title, description, maxSeats (min: 1) |
 | `DELETE` | `/courses/{id}` | INSTRUCTOR | Deactivate a course (soft delete) |
+| `POST` | `/courses/{id}/activate` | INSTRUCTOR | Reactivate a previously deactivated course — returns `204 No Content` |
 
 ### Course response fields
 

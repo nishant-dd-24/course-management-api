@@ -72,28 +72,6 @@ After logout, any request bearing the old access token is rejected at the blackl
 
 ---
 
-## Admin Bootstrap
-
-`AdminInitializer` runs on startup and creates an `ADMIN` user if one does not already exist for the configured email. The operation is `@Transactional`. If a user with `app.admin.email` already exists, bootstrap is skipped silently.
-
-Configuration properties:
-
-```properties
-app.admin.email=admin@example.com
-app.admin.password=12345678
-app.admin.name=Admin
-```
-
-These can be overridden via environment variables using Spring's relaxed binding:
-
-```bash
-export APP_ADMIN_EMAIL=admin@example.com
-export APP_ADMIN_PASSWORD=changeme
-export APP_ADMIN_NAME="Default Admin"
-```
-
----
-
 ## Design Rationale
 
 For the full reasoning behind the access + refresh token model with Redis backing (versus pure stateless JWT), see [design-decisions.md](design-decisions.md). In summary: pure stateless JWTs cannot be revoked before expiry; the Redis blacklist provides true revocation on logout at the cost of one sub-millisecond Redis read per authenticated request.

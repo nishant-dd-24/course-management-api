@@ -26,7 +26,8 @@ Client Request
 │   JWT Filter    │  Validates token signature and expiry; checks Redis blacklist;
 │                 │  loads SecurityContext
 │                 │  (skipped for: /users/login, /users/register, /users/refresh,
-│                 │   /actuator/health/**, /swagger-ui/**, /v3/api-docs/**)
+│                 │   /actuator/health/**, /swagger-ui/**, /v3/api-docs/**,
+│                 │   /, /docs)
 └─────────────────┘
          │
          ▼
@@ -69,7 +70,7 @@ The filter is active for all Spring profiles except `mock-redis`. See [rate-limi
 `JwtFilter` runs last in the chain, after rate limiting is applied.
 
 **Responsibilities:**
-- Skips processing for public endpoints: `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, and `/v3/api-docs/**`.
+- Skips processing for public endpoints: `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, `/v3/api-docs/**`, and root paths `/` and `/docs` (which redirect to Swagger UI).
 - Extracts and validates the JWT from the `Authorization: Bearer <token>` header — validates signature and expiry.
 - Checks the Redis blacklist (`blacklist:<token>`) to reject tokens that were invalidated by logout, regardless of signature validity.
 - Loads the `SecurityContext` with the authenticated principal so downstream Spring Security role checks can proceed.

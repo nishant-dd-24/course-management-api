@@ -103,7 +103,7 @@ The cross-instance invalidation is asynchronous and zero-cost on the critical wr
 | TTL | 10 minutes (matched to L1) |
 | Serializer | `GenericJacksonJsonRedisSerializer` with default typing enabled |
 
-Default typing on the Redis serializer allows polymorphic types to round-trip correctly without requiring explicit type hints at each cache call site. Values are stored as typed JSON objects and deserialized back to their original Java types on retrieval.
+Default typing on the Redis serializer allows polymorphic types to round-trip correctly without requiring explicit type hints at each cache call site. Values are stored as typed JSON objects and deserialized back to their original Java types on retrieval. A `BasicPolymorphicTypeValidator` restricted to `Object.class` as the base type is applied, which prevents arbitrary class deserialization from untrusted Redis data.
 
 ---
 

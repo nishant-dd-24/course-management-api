@@ -4,11 +4,30 @@
 
 ---
 
+## Repository Layout
+
+The project is a monorepo with a Spring Boot backend at the repository root and a React SPA under `frontend/`:
+
+```
+course-management-api/
+├── src/                      # Backend source (Java)
+├── frontend/                 # React + Vite SPA
+├── docs/                     # Technical documentation
+├── scripts/deploy.sh         # Blue-green deployment script
+├── docker-compose.yml        # Production stack
+├── docker-compose.dev.yml    # Local dev stack
+├── nginx.conf                # TLS, API proxy, static frontend
+└── .env.example              # Environment variable template (copy to .env and fill in values)
+```
+
+---
+
 ## Package Structure
 
 ```
 src/main/java/com/nishant/coursemanagement/
 │
+├── bootstrap/       # Admin user bootstrap on startup
 ├── config/          # Security, cache, Redis, and rate-limiting configuration
 ├── controller/      # REST endpoints (users, courses, enrollments)
 ├── service/         # Business logic (split into command + query services)
@@ -110,9 +129,11 @@ Listeners in `event/listeners/` subscribe to these events and call `CompositeCac
 ## Infrastructure Topology (Production)
 
 ```
-Client
-  → DNS (api.nishantdd.dev)
-  → DigitalOcean Droplet (Linux VPS)
+Browser (app.nishantdd.dev)
+  → Nginx container (ports 80/443)
+  → Static React SPA (frontend/dist)
+
+API client (api.nishantdd.dev)
   → Nginx container (ports 80/443)
   → Active app container (app-blue or app-green)
   → Spring Boot API (:8080)
@@ -120,4 +141,4 @@ Client
   → Redis container
 ```
 
-All containers run on `app-network` (Docker bridge). Inter-service communication uses Docker DNS names (`postgres`, `redis`, `app-blue`, `app-green`). See [deployment.md](deployment.md) for the full infrastructure and blue-green deployment setup.
+All containers run on `app-network` (Docker bridge). Inter-service communication uses Docker DNS names (`postgres`, `redis`, `app-blue`, `app-green`). Nginx terminates TLS for both `api.nishantdd.dev` (reverse proxy to the active app container) and `app.nishantdd.dev` (static file server for the built frontend). See [deployment.md](deployment.md) for the full infrastructure and blue-green deployment setup.

@@ -130,8 +130,10 @@ All integration test classes extend `BaseIntegrationTest`, which provides:
 
 **`mock-redis` profile** (`application-mock-redis.properties`):
 - Caching disabled (`spring.cache.type=none`)
-- Redis repositories disabled
-- Intended for alternate local wiring; **not** used by the default integration suite
+- Redis repositories disabled (`spring.data.redis.repositories.enabled=false`)
+- `RateLimitFilter`, `Bucket4jConfig`, `RedisConfig`, and `CacheConfig` are all gated by `@Profile("!mock-redis")` — they are not instantiated under this profile, so rate limiting is entirely absent
+- The **default** Maven build (`./mvnw clean verify` without any `-P` flag) activates `test,mock-redis`, so all standard local test runs use this profile
+- **Not** used by the CI integration suite; the `real` Maven profile (`-Preal`) activates only `test`, enabling Testcontainers-backed Redis and all Redis-dependent beans
 
 ### Maven profiles
 
@@ -165,3 +167,9 @@ The integration tests pin `@ActiveProfiles("test")`, so the verified path in CI 
 ./mvnw -Dit.test=EnrollmentFlowIT failsafe:integration-test failsafe:verify
 ./mvnw -Dit.test=CacheFlowIT failsafe:integration-test failsafe:verify
 ```
+
+### Frontend
+
+The React frontend under `frontend/` is not covered by the Maven test suite. Linting is available via `npm run lint` in the `frontend/` directory. The CI pipeline builds the frontend (`npm ci && npm run build`) but does not run automated frontend tests.
+
+Coverage spans service-layer unit tests and controller-layer integration tests (real PostgreSQL + Redis via Testcontainers). See [frontend/README.md](../frontend/README.md) for frontend setup.
