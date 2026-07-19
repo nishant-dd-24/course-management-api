@@ -319,3 +319,7 @@ Coverage spans service-layer unit tests and controller-layer integration tests (
 ---
 
 **Author:** Nishantkumar Dwivedi — [github.com/nishant-dd-24](https://github.com/nishant-dd-24)
+
+## License
+
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
