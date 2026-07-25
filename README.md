@@ -1,321 +1,150 @@
 # Course Management API
 
-A production-grade course management platform built with **Java 21**, **Spring Boot**, and a **React + Vite** frontend. The backend exposes a REST API for users, courses, and enrollments with JWT authentication, role-based access control, distributed caching, Redis-backed rate limiting, pessimistic concurrency control, and structured observability.
+<div align="center">
 
-> **Deployment Status:** The deployment infrastructure is fully implemented, and the repository contains a complete production-ready deployment pipeline. However, the production deployment is currently **inactive** and not hosted. Any URLs referenced in this documentation (e.g., `api.nishantdd.dev`) are for configuration examples and historical context only.
+  [![Java 21](https://img.shields.io/badge/Java-21-orange.svg)](https://java.com/)
+  [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
+  [![React 19](https://img.shields.io/badge/React-19-blue.svg)](https://react.dev/)
+  [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791.svg)](https://www.postgresql.org/)
+  [![Redis](https://img.shields.io/badge/Redis-7-DC382D.svg)](https://redis.io/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
-
-## Key Features
-
-| Area | Implementation |
-|---|---|
-| **Auth** | JWT access + refresh tokens; Redis-backed blacklist and refresh store; explicit logout invalidation |
-| **Access Control** | Role-based permissions — `ADMIN`, `INSTRUCTOR`, `STUDENT` |
-| **Rate Limiting** | Role + endpoint-aware distributed token bucket via Bucket4j + Redis |
-| **Caching** | Two-level: Caffeine (L1) + Redis (L2); cross-instance eviction via Pub/Sub |
-| **Concurrency** | Pessimistic write locking on enrollment seat claims |
-| **Observability** | Per-request trace IDs, MDC-based structured JSON logging, `@Loggable` instrumentation |
-| **Error Handling** | Global exception handler; consistent JSON error schema; dual 401/403 coverage |
-| **Frontend** | React 19 SPA with role-aware dashboard, courses, enrollments, and admin user management |
-| **Testing** | Service-layer unit tests + MockMvc integration tests with PostgreSQL + Redis Testcontainers |
+  **A production-grade, highly-concurrent course management platform with role-based access control and zero-downtime deployments.**
+</div>
 
 ---
 
-## Tech Stack
+> [!NOTE]  
+> **Project Status:** The deployment infrastructure (Blue-Green CI/CD, Nginx, Let's Encrypt automation) is fully implemented and deployment-ready. The production deployment is currently **inactive** and not hosted. URLs referenced in documentation (e.g., `api.nishantdd.dev`) are architectural examples.
 
-| Layer | Technology |
-|---|---|
-| **Backend runtime** | Java 21, Spring Boot 4.0.5 |
-| **Backend security** | Spring Security + JJWT 0.12.7 |
-| **Database** | PostgreSQL + Spring Data JPA |
-| **Cache L1** | Caffeine via Spring Cache |
-| **Cache L2** | Redis via Spring Cache |
-| **Rate Limiting** | Bucket4j + Bucket4j Redis (Lettuce `ProxyManager`) |
-| **Session Store** | Redis (blacklist, refresh tokens, rate limit state, eviction Pub/Sub) |
-| **Logging** | Logstash Logback Encoder + Spring AOP |
-| **Testing** | JUnit 5 + Mockito + Testcontainers (PostgreSQL 15, Redis 7) |
-| **Build (backend)** | Maven |
-| **Frontend** | React 19, Vite 8, Tailwind CSS 4 |
-| **Ops** | Spring Boot Actuator, Docker Compose, Nginx, GitHub Actions |
+## 🚀 Overview
 
----
+The **Course Management API** is a full-stack platform built to handle the complexities of concurrent user enrollment and high-traffic edge cases. It is designed with mature backend patterns typically found in enterprise systems, paired with a modern React SPA and a robust, automated infrastructure pipeline.
 
-## Repository Structure
+Whether you are an `ADMIN` managing the platform, an `INSTRUCTOR` publishing courses, or a `STUDENT` securing a limited seat in a high-demand class, the system guarantees data consistency, high availability, and rapid responses.
 
+## 🛠 Engineering Highlights
+
+This repository serves as a demonstration of production-ready software engineering, focusing on reliability, scalability, and security:
+
+- **Distributed Rate Limiting:** Implemented via [Bucket4j + Redis](docs/rate-limiting.md) to protect endpoints dynamically based on user roles (e.g., standard users vs. admins).
+- **Pessimistic Concurrency Control:** Write locks on course seats ensure zero over-enrollment during high-traffic registration spikes.
+- **Two-Level Caching Architecture:** Uses Caffeine (L1) for near-instant reads and Redis (L2) for distributed consistency, synchronized via Pub/Sub.
+- **Zero-Downtime Blue-Green Deployments:** A custom [bootstrap and deployment script](docs/deployment.md) seamlessly swaps active Docker containers behind an Nginx reverse proxy.
+- **Stateless JWT Authentication:** Access and refresh token flows backed by a Redis blacklist for immediate session invalidation on logout.
+- **Structured Observability:** Trace IDs injected via MDC across the entire request lifecycle, ensuring seamless log aggregation and debugging.
+
+## ✨ Core Features
+
+| Feature | Details |
+| :--- | :--- |
+| 🛡 **Role-Based Access Control** | Distinct permissions for `ADMIN`, `INSTRUCTOR`, and `STUDENT` personas. |
+| 🎓 **Course Lifecycle** | Instructors can draft, publish, and manage seat capacities dynamically. |
+| 💳 **Safe Enrollments** | Students can claim seats without race conditions disrupting availability. |
+| 🌐 **Modern Frontend** | A fast, responsive React 19 SPA powered by Vite and Tailwind CSS. |
+| 🐳 **Containerized Infra** | One-command provisioning for PostgreSQL, Redis, and Nginx. |
+| 📜 **API Documentation** | Interactive Swagger UI available out-of-the-box. |
+
+## 🏗 System Architecture
+
+The infrastructure uses a classic edge-proxy topology for reverse routing and TLS termination, routing API traffic to the currently active application container (Blue or Green).
+
+```mermaid
+graph TD
+    Client([Browser / Client]) -->|HTTPS| Nginx[Nginx Edge Proxy]
+    
+    subgraph Host Server [Docker Host]
+        Nginx -->|/assets| Static[React Static Files]
+        Nginx -->|/api| ActiveApp
+        
+        subgraph App Containers
+            ActiveApp[Active App Container: 8080]
+            InactiveApp[Inactive App Container]
+        end
+        
+        ActiveApp -->|JDBC| DB[(PostgreSQL 15)]
+        ActiveApp -->|Lettuce| Cache[(Redis 7)]
+    end
+    
+    style ActiveApp fill:#d4edda,stroke:#28a745,stroke-width:2px
+    style InactiveApp fill:#f8d7da,stroke:#dc3545,stroke-width:1px,stroke-dasharray: 5 5
+    style Nginx fill:#cce5ff,stroke:#004085
 ```
-course-management-api/
-├── src/                      # Spring Boot backend
-├── frontend/                 # React + Vite SPA
-├── docs/                     # Technical documentation
-├── scripts/                  # Infrastructure bootstrap and deployment scripts
-├── docker-compose.yml        # Production stack (Postgres, Redis, Nginx, app-blue/green)
-├── docker-compose.dev.yml    # Local dev stack with hot reload
-├── Dockerfile                # Production API image
-├── Dockerfile.dev            # Dev API image
-├── nginx.conf                # TLS termination, API proxy, static frontend
-├── .env.example              # Environment variable template
-└── pom.xml
-```
 
-### Backend package layout
+For an in-depth look at package structures, domain models, and request processing, refer to the [Architecture Documentation](docs/architecture.md).
 
-```
-src/main/java/com/nishant/coursemanagement/
-├── bootstrap/       # Admin user bootstrap on startup
-├── config/          # Security, cache, Redis, rate limiting, OpenAPI
-├── controller/      # REST endpoints (users, courses, enrollments)
-├── service/         # Business logic (command + query services)
-├── repository/      # Spring Data JPA repositories
-├── entity/          # JPA entities (User, Course, Enrollment)
-├── dto/             # Request/response models and PageResponse wrapper
-├── mapper/          # Entity ↔ DTO conversion
-├── exception/       # Custom exceptions, global handler, error response factory
-├── security/        # JWT utilities, properties, auth helpers
-├── filter/          # OncePerRequestFilter chain (Trace → RateLimit → JWT)
-├── cache/           # CompositeCacheManager, CompositeCache, key builders
-├── event/           # Domain events and cache-eviction listeners
-├── log/             # @Loggable annotation, LoggingAspect (AOP), LogUtil
-└── util/            # Shared utilities (Sanitizer, StringUtil, etc.)
-```
+## ⚡ Quick Start (Docker)
 
-For architecture details, see [docs/architecture.md](docs/architecture.md).
+The fastest way to run the application is via Docker Compose.
 
----
+**Prerequisites:** Docker, Git.
 
-## Quick Start
-
-### Prerequisites
-
-- **Backend:** Java 21+, Maven 3.8+
-- **Frontend:** Node.js 22+ (matches CI), npm
-- **Infrastructure:** PostgreSQL 15 and Redis 7 — run locally or via Docker Compose
-
-### 1. Clone
+### 1. Clone & Configure
 
 ```bash
 git clone https://github.com/nishant-dd-24/course-management-api.git
 cd course-management-api
-```
-
-### 2. Configure environment
-
-```bash
 cp .env.example .env
 ```
+*(Open `.env` and set `SPRING_DATASOURCE_PASSWORD` and a 32-byte Base64 `JWT_SECRET`)*
 
-Open `.env` and set the required values:
-
-| Variable | Required | Notes |
-|---|---|---|
-| `SPRING_DATASOURCE_USERNAME` | No | PostgreSQL username; defaults to `course_user` |
-| `SPRING_DATASOURCE_PASSWORD` | Yes | PostgreSQL password |
-| `JWT_SECRET` | Yes | Base64-encoded secret, min 32 raw bytes (`openssl rand -base64 32`) |
-| `APP_ADMIN_PASSWORD` | Optional | Password for the bootstrapped admin account; defaults to `12345678` — override for any non-local deployment |
-| All others | No | Safe defaults for local development |
-
-Full variable reference: [docs/deployment.md](docs/deployment.md)
-
-### 3. Run with Docker (recommended)
-
-**Development (API hot reload):**
+### 2. Start the Stack
 
 ```bash
-docker compose -f docker-compose.dev.yml up --build
+# Starts PostgreSQL, Redis, and the Spring Boot API with hot-reload enabled
+docker compose -f docker-compose.dev.yml up --build -d
 ```
+The API is now running at `http://localhost:8080`.
 
-Starts PostgreSQL, Redis, and the Spring Boot app with source mounted for DevTools restart. API available at `http://localhost:8080`.
+### 3. Run the Frontend
 
-**Production topology (VPS-style stack):**
-
-```bash
-docker compose up -d
-```
-
-Starts `postgres`, `redis`, `nginx`, and `app-blue`. The `scripts/bootstrap.sh` script automates the initial Let's Encrypt certificate setup. Traffic is served on ports 80/443 — not on `localhost:8080`. See [docs/deployment.md](docs/deployment.md).
-
-### 4. Run the frontend locally
-
-With the API running on port 8080:
+Requires Node 22+.
 
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+Access the application at `http://localhost:5173`.
 
-Open `http://localhost:5173`. The dev server uses `VITE_API_BASE_URL=http://localhost:8080` from `frontend/.env.development`. CORS is preconfigured for `http://localhost:5173`.
+> [!TIP]
+> Prefer to run the Java app manually via Maven? Check the [Local Development Guide](docs/local-development.md).
 
-See [frontend/README.md](frontend/README.md) for page-level details and build instructions.
+## 📚 Documentation Hub
 
----
+We maintain comprehensive documentation for every layer of the stack. 
 
-## Manual Setup (without Docker)
+| Category | File | Description |
+| :--- | :--- | :--- |
+| **System** | [Architecture](docs/architecture.md) | Package structure, domain models, and service boundaries |
+| **System** | [Request Flow](docs/request-flow.md) | Filter chain, per-request processing pipeline |
+| **System** | [Design Decisions](docs/design-decisions.md) | The *why* behind our technical choices |
+| **Deep Dive** | [Caching](docs/caching.md) | Two-level cache strategy and Pub/Sub sync |
+| **Deep Dive** | [Concurrency](docs/concurrency.md) | Pessimistic locking for safe seat allocation |
+| **Deep Dive** | [Rate Limiting](docs/rate-limiting.md) | Bucket4j implementation and endpoint limits |
+| **Deep Dive** | [Observability](docs/observability.md) | MDC logging and `@Loggable` instrumentation |
+| **Deep Dive** | [Session Management](docs/session-management.md) | JWT design and Redis token storage |
+| **Deep Dive** | [Error Handling](docs/error-handling.md) | Global handler, error schema, 401/403 dual coverage |
+| **DevOps** | [Deployment](docs/deployment.md) | Nginx proxy, Let's Encrypt automation, and bootstrap |
+| **DevOps** | [CI/CD](docs/cicd.md) | GitHub Actions and Blue-Green deploy scripts |
+| **Reference** | [API Endpoints](docs/api.md) | Complete REST API schemas and role requirements |
+| **Reference** | [Frontend](frontend/README.md) | Frontend setup, pages, auth flow, and build instructions |
+| **Reference** | [Testing](docs/testing.md) | Unit, integration, and Testcontainers setup |
+| **Reference** | [Local Development](docs/local-development.md) | Manual database and application setup instructions |
+| **Reference** | [Troubleshooting](docs/troubleshooting.md) | Common errors and resolutions |
 
-### Provision database
+## 🛣 Roadmap
 
-```sql
-CREATE USER course_user WITH PASSWORD 'your_db_password';
-CREATE DATABASE course_db OWNER course_user;
-```
+- [ ] **State Machine Enforcement**: Stricter guards for `PENDING_PAYMENT → ACTIVE` enrollment states.
+- [ ] **Async Event Pipeline**: Offload post-mutation side effects (e.g., emails) from the request thread.
+- [ ] **Observability Uplift**: Migrate to OpenTelemetry tracing and Prometheus metrics.
+- [ ] **Frontend Testing**: Introduce Cypress/Playwright integration tests for the React SPA.
 
-Ensure PostgreSQL and Redis are running locally.
-
-### Export environment variables
-
-```bash
-set -a && source .env && set +a
-```
-
-For a non-Docker run, also set connection hosts if needed:
-
-```bash
-export SPRING_DATASOURCE_URL=jdbc:postgresql://localhost:5432/course_db
-export SPRING_DATASOURCE_USERNAME=course_user
-export SPRING_DATA_REDIS_HOST=localhost
-export SPRING_DATA_REDIS_PORT=6379
-```
-
-### Start the API
-
-```bash
-./mvnw spring-boot:run
-```
-
-API starts at `http://localhost:8080`. An `ADMIN` user is bootstrapped automatically on first start using the configured admin credentials.
-
----
-
-## Production Deployment Architecture
-
-The project includes a deployment architecture designed for hosting on a VPS (previously a **DigitalOcean Droplet**) behind **Nginx** (TLS terminator + reverse proxy). Deployment uses a **blue-green strategy** with zero-downtime cutover.
-
-```
-Browser → app.nishantdd.dev → Nginx (static React SPA)
-Client  → api.nishantdd.dev  → Nginx → Active app container (app-blue or app-green) → Spring Boot API
-                                                                                    → PostgreSQL
-                                                                                    → Redis
-```
-
-- Traffic switches only after the incoming container passes `/actuator/health/readiness`
-- Rollback is automatic on health-check failure
-- HTTPS via Let's Encrypt; HTTP → HTTPS redirect enforced at Nginx
-- The CI pipeline builds the frontend and copies `frontend/dist` to the host server alongside infra files
-
-Full details: [docs/deployment.md](docs/deployment.md)
-
----
-
-## CI/CD
-
-Automated via **GitHub Actions** (workflow currently disabled as `.github/workflows/deploy.yml.removed` since the production environment is inactive).
-
-| Step | Action |
-|---|---|
-| Trigger | Push to `main` |
-| Test | `./mvnw clean verify -Preal` (Testcontainers) |
-| Build | Frontend (`npm ci && npm run build`) + Docker image tagged with `github.sha`, pushed to Docker Hub |
-| Deploy | SCP artifacts to host server → SSH executes `scripts/deploy.sh` |
-
-The deploy script handles the full blue-green cutover sequence with built-in rollback. See [docs/cicd.md](docs/cicd.md).
-
----
-
-## API Overview
-
-All endpoints except `/users/login`, `/users/register`, `/users/refresh`, `/actuator/health/**`, `/swagger-ui/**`, `/v3/api-docs/**`, `/`, and `/docs` require:
-
-```
-Authorization: Bearer <access_token>
-```
-
-| Domain | Endpoints |
-|---|---|
-| Auth | `POST /users/login`, `/users/register`, `/users/refresh`, `/users/logout` |
-| Users | `GET\|PUT\|PATCH\|DELETE /users`, `/users/{id}`, `/users/my`, `POST /users/my/change-password` |
-| Courses | `GET\|POST\|PUT\|PATCH\|DELETE /courses`, `/courses/active`, `/courses/my`, `POST /courses/{id}/activate` |
-| Enrollments | `POST\|DELETE /enrollments/{courseId}`, `GET /enrollments/my`, `GET /enrollments/{id}` |
-| Ops | `GET /actuator/health/**` (public), `/actuator/info` (authenticated), `/swagger-ui/index.html` (public), `/v3/api-docs` (public) |
-
-Full request/response schemas, role requirements, query parameters, and lifecycle notes: [docs/api.md](docs/api.md)
-
-### Swagger / OpenAPI
-
-- Swagger UI: `/swagger-ui/index.html` (also reachable via `/` and `/docs`)
-- OpenAPI JSON: `/v3/api-docs`
-- For protected endpoints in Swagger, authorize with `Bearer <access_token>`
-
----
-
-## Testing
-
-```bash
-# Full suite (unit + integration, Testcontainers)
-./mvnw clean verify
-
-# CI-equivalent profile
-./mvnw clean verify -Preal
-
-# Specific unit test class
-./mvnw test -Dtest=CourseUnitTests
-
-# Specific integration test class
-./mvnw -Dit.test=CacheFlowIT failsafe:integration-test failsafe:verify
-```
-
-Coverage spans service-layer unit tests and controller-layer integration tests (real PostgreSQL + Redis via Testcontainers). See [docs/testing.md](docs/testing.md).
-
----
-
-## Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---|---|---|
-| App fails to start with JWT error | `JWT_SECRET` not set | Add a Base64 secret to `.env` (`openssl rand -base64 32`) |
-| Frontend cannot reach API | API not running or wrong base URL | Confirm API on `:8080`; check `frontend/.env.development` |
-| CORS errors in browser | Origin not allowed | Backend allows `http://localhost:5173` and `https://app.nishantdd.dev` only |
-| `docker compose up` fails on TLS | Missing Let's Encrypt certs | Use `docker-compose.dev.yml` locally, or provision certs on the host |
-| Integration tests hang or fail | Docker not available for Testcontainers | Ensure Docker daemon is running; use `-Preal` for full Redis coverage |
-
----
-
-## Documentation Index
-
-| File | Contents |
-|---|---|
-| [docs/architecture.md](docs/architecture.md) | Package structure, service split, domain model |
-| [docs/api.md](docs/api.md) | Full endpoint reference, schemas, lifecycle notes |
-| [docs/request-flow.md](docs/request-flow.md) | Filter chain, per-request processing pipeline |
-| [docs/session-management.md](docs/session-management.md) | JWT design, Redis token store, logout invalidation |
-| [docs/rate-limiting.md](docs/rate-limiting.md) | Token bucket strategy, role/endpoint limits |
-| [docs/caching.md](docs/caching.md) | Two-level cache, eviction, cross-instance Pub/Sub sync |
-| [docs/concurrency.md](docs/concurrency.md) | Pessimistic locking, seat-count correctness |
-| [docs/observability.md](docs/observability.md) | Trace filter, structured logging, `@Loggable` |
-| [docs/error-handling.md](docs/error-handling.md) | Global handler, error schema, 401/403 dual coverage |
-| [docs/deployment.md](docs/deployment.md) | Infrastructure, Docker topology, Nginx, HTTPS, env vars |
-| [docs/cicd.md](docs/cicd.md) | GitHub Actions pipeline, deploy script, rollback |
-| [docs/testing.md](docs/testing.md) | Unit and integration test structure, coverage, profiles |
-| [docs/design-decisions.md](docs/design-decisions.md) | Rationale for major architectural choices |
-| [frontend/README.md](frontend/README.md) | Frontend setup, pages, auth flow, build |
-
----
-
-## Future Scope
-
-- [ ] **Enrollment state machine** — `PENDING_PAYMENT → ACTIVE → CANCELLED / EXPIRED` with enforced state guards
-- [ ] **Course lifecycle management** — `DRAFT → PUBLISHED → ARCHIVED` states with enrollment restrictions
-- [ ] **Payment integration** — Idempotent payment initiation and webhook ingestion
-- [ ] **Async event pipeline** — Post-mutation side effects off the request thread
-- [ ] **Background job processing** — Scheduled cleanup and retry queues
-- [ ] **Instructor analytics** — Aggregated enrollment metrics per course
-- [ ] **Observability uplift** — Prometheus metrics + OpenTelemetry tracing
-- [ ] **Frontend test coverage** — Component and integration tests for the React SPA
-- [ ] **Resilience hardening** — Failure simulation for Redis/DB outages and request storms
-
----
-
-**Author:** Nishantkumar Dwivedi — [github.com/nishant-dd-24](https://github.com/nishant-dd-24)
-
-## License
+## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+
+---
+<div align="center">
+  Built by <a href="https://github.com/nishant-dd-24">Nishantkumar Dwivedi</a>
+</div>
