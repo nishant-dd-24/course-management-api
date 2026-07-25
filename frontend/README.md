@@ -2,9 +2,11 @@
 
 React single-page application for the [Course Management API](../README.md). Provides login, registration, a role-aware dashboard, course management, enrollment views, and admin user management.
 
+> **Deployment Status:** The production deployment is currently inactive. The URLs below are configuration examples reflecting the implemented deployment architecture.
+
 | Environment | URL |
 |---|---|
-| **Production** | [`https://app.nishantdd.dev`](https://app.nishantdd.dev) |
+| **Production (Inactive)** | `https://app.nishantdd.dev` |
 | **Local dev** | `http://localhost:5173` (Vite default) |
 
 The frontend talks to the backend API configured via `VITE_API_BASE_URL`.
@@ -104,7 +106,7 @@ Vite exposes only variables prefixed with `VITE_`. To point at a different API d
 The backend allows browser requests from:
 
 - `http://localhost:5173` (local dev)
-- `https://app.nishantdd.dev` (production)
+- `https://app.nishantdd.dev` (production - currently inactive)
 
 If you change the Vite dev port, update `SecurityConfig.corsConfigurationSource()` in the backend accordingly.
 
@@ -177,7 +179,7 @@ The GitHub Actions pipeline builds the frontend on every push to `main`:
 
 1. `npm ci` in `frontend/`
 2. `npm run build` (uses `.env.production`)
-3. `frontend/dist` is copied to the droplet alongside `nginx.conf` and `docker-compose.yml`
+3. `frontend/dist` is copied to the host server alongside `nginx.conf` and `docker-compose.yml`
 
 Nginx serves the static files from `/usr/share/nginx/html` (bind-mounted from `frontend/dist` on the host). See [docs/cicd.md](../docs/cicd.md).
 

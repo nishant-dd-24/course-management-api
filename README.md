@@ -2,11 +2,7 @@
 
 A production-grade course management platform built with **Java 21**, **Spring Boot**, and a **React + Vite** frontend. The backend exposes a REST API for users, courses, and enrollments with JWT authentication, role-based access control, distributed caching, Redis-backed rate limiting, pessimistic concurrency control, and structured observability.
 
-| Environment | URL |
-|---|---|
-| **API (production)** | [`https://api.nishantdd.dev`](https://api.nishantdd.dev) |
-| **Web app (production)** | [`https://app.nishantdd.dev`](https://app.nishantdd.dev) |
-| **API docs (Swagger UI)** | [`https://api.nishantdd.dev/swagger-ui/index.html`](https://api.nishantdd.dev/swagger-ui/index.html) |
+> **Deployment Status:** The deployment infrastructure is fully implemented, and the repository contains a complete production-ready deployment pipeline. However, the production deployment is currently **inactive** and not hosted. Any URLs referenced in this documentation (e.g., `api.nishantdd.dev`) are for configuration examples and historical context only.
 
 ---
 
@@ -190,9 +186,9 @@ API starts at `http://localhost:8080`. An `ADMIN` user is bootstrapped automatic
 
 ---
 
-## Production Deployment
+## Production Deployment Architecture
 
-Hosted on a **DigitalOcean Droplet** behind **Nginx** (TLS terminator + reverse proxy). Deployment uses a **blue-green strategy** with zero-downtime cutover.
+The project includes a deployment architecture designed for hosting on a VPS (previously a **DigitalOcean Droplet**) behind **Nginx** (TLS terminator + reverse proxy). Deployment uses a **blue-green strategy** with zero-downtime cutover.
 
 ```
 Browser → app.nishantdd.dev → Nginx (static React SPA)
@@ -204,7 +200,7 @@ Client  → api.nishantdd.dev  → Nginx → Active app container (app-blue or a
 - Traffic switches only after the incoming container passes `/actuator/health/readiness`
 - Rollback is automatic on health-check failure
 - HTTPS via Let's Encrypt; HTTP → HTTPS redirect enforced at Nginx
-- The CI pipeline builds the frontend and copies `frontend/dist` to the droplet alongside infra files
+- The CI pipeline builds the frontend and copies `frontend/dist` to the host server alongside infra files
 
 Full details: [docs/deployment.md](docs/deployment.md)
 
@@ -219,7 +215,7 @@ Automated via **GitHub Actions** (`.github/workflows/deploy.yml`).
 | Trigger | Push to `main` |
 | Test | `./mvnw clean verify -Preal` (Testcontainers) |
 | Build | Frontend (`npm ci && npm run build`) + Docker image tagged with `github.sha`, pushed to Docker Hub |
-| Deploy | SCP artifacts to droplet → SSH executes `scripts/deploy.sh` |
+| Deploy | SCP artifacts to host server → SSH executes `scripts/deploy.sh` |
 
 The deploy script handles the full blue-green cutover sequence with built-in rollback. See [docs/cicd.md](docs/cicd.md).
 

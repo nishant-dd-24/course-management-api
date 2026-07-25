@@ -2,15 +2,17 @@
 
 > Related: [architecture.md](architecture.md) | [cicd.md](cicd.md)
 
+> **Deployment Status:** The project contains a complete production-ready deployment pipeline. The infrastructure can be deployed to a fresh server using the provided deployment tooling. However, the production deployment is currently **inactive** and not hosted. Any domain names referenced below are configuration examples reflecting the implemented architecture.
+
 ---
 
 ## Infrastructure
 
 | Component | Detail |
 |---|---|
-| Host | DigitalOcean Droplet (Linux VPS) |
-| API domain | `api.nishantdd.dev` → Droplet public IP (DNS A record) |
-| Web app domain | `app.nishantdd.dev` → Droplet public IP (DNS A record) |
+| Host | Linux VPS (previously a DigitalOcean Droplet) |
+| API domain | `api.nishantdd.dev` → VPS public IP (DNS A record) |
+| Web app domain | `app.nishantdd.dev` → VPS public IP (DNS A record) |
 | TLS | Let's Encrypt certificates, terminated at Nginx |
 | Public ports | 80 (redirected to 443), 443 |
 | Container runtime | Docker + Docker Compose |
@@ -199,7 +201,7 @@ npm run build
 
 Output: `frontend/dist/`. Production builds use `VITE_API_BASE_URL=https://api.nishantdd.dev` from `frontend/.env.production`.
 
-**CI/CD:** The GitHub Actions pipeline runs `npm ci && npm run build` in `frontend/`, then SCPs `frontend/dist` to the droplet alongside `nginx.conf` and `docker-compose.yml`. Nginx bind-mounts the directory read-only.
+**CI/CD:** The GitHub Actions pipeline runs `npm ci && npm run build` in `frontend/`, then SCPs `frontend/dist` to the host server alongside `nginx.conf` and `docker-compose.yml`. Nginx bind-mounts the directory read-only.
 
 See [frontend/README.md](../frontend/README.md) for local development setup.
 

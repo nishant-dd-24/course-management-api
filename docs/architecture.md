@@ -2,6 +2,8 @@
 
 > Related: [request-flow.md](request-flow.md) | [design-decisions.md](design-decisions.md)
 
+> **Deployment Status:** The production deployment is currently inactive. The infrastructure described below is fully implemented and can be deployed using the included tooling.
+
 ---
 
 ## Repository Layout
@@ -126,7 +128,7 @@ Listeners in `event/listeners/` subscribe to these events and call `CompositeCac
 
 ---
 
-## Infrastructure Topology (Production)
+## Infrastructure Topology (Production Architecture)
 
 ```
 Browser (app.nishantdd.dev)

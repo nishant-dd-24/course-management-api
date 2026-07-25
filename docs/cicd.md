@@ -2,6 +2,8 @@
 
 > Related: [deployment.md](deployment.md) | [testing.md](testing.md)
 
+> **Deployment Status:** The CI/CD pipeline and deployment infrastructure are fully implemented. However, the production deployment is currently inactive and not hosted.
+
 ---
 
 ## Overview
@@ -41,9 +43,9 @@ Uses Node.js 22 (matching local development recommendation). The build reads `VI
 - Docker image is built from the root `Dockerfile` and tagged as `nishantdd/course-management-api:${{ github.sha }}`.
 - Versioned image is pushed to Docker Hub.
 
-**Transfer artifacts to droplet:**
+**Transfer artifacts to host server:**
 
-The following are copied to `/root/course-management-api` on the droplet via SCP:
+The following are copied to `/root/course-management-api` on the host server via SCP:
 
 | Artifact | Purpose |
 |---|---|
@@ -52,17 +54,17 @@ The following are copied to `/root/course-management-api` on the droplet via SCP
 | `scripts/*` | Blue-green deploy script |
 | `frontend/dist` | Built React SPA served by Nginx |
 
-Before copying, the pipeline removes the previous `frontend/dist` on the droplet to avoid stale assets.
+Before copying, the pipeline removes the previous `frontend/dist` on the host server to avoid stale assets.
 
 **Remote execution:**
 
-- SSH executes `./scripts/deploy.sh ${{ github.sha }}` on the droplet.
+- SSH executes `./scripts/deploy.sh ${{ github.sha }}` on the host server.
 
 ---
 
 ## Deploy Script (`scripts/deploy.sh`)
 
-The deploy script performs the full blue-green cutover sequence on the droplet. It receives the new image SHA as its only argument.
+The deploy script performs the full blue-green cutover sequence on the host server. It receives the new image SHA as its only argument.
 
 ```
 deploy.sh <image-sha>
@@ -97,10 +99,10 @@ The following secrets must be configured in the GitHub repository (`Settings →
 |---|---|
 | `DOCKER_USERNAME` | Docker Hub login username |
 | `DOCKER_PASSWORD` | Docker Hub password/token for push |
-| `SERVER_IP` | DigitalOcean Droplet IP or hostname |
-| `SSH_PRIVATE_KEY` | Private SSH key for droplet access |
+| `SERVER_IP` | Host server IP or hostname |
+| `SSH_PRIVATE_KEY` | Private SSH key for server access |
 
-Environment variables for the running application (database credentials, JWT secret, admin bootstrap) are sourced from the `.env` file on the droplet at `/root/course-management-api/.env`. This file is not managed by the pipeline — it must be provisioned on the droplet manually. Use `.env.example` in the repository as a template.
+Environment variables for the running application (database credentials, JWT secret, admin bootstrap) are sourced from the `.env` file on the host server at `/root/course-management-api/.env`. This file is not managed by the pipeline — it must be provisioned on the server manually. Use `.env.example` in the repository as a template.
 
 ---
 
@@ -114,7 +116,7 @@ nishantdd/course-management-api:abc1234def5678...
 
 This makes every deployed backend version traceable to a specific commit. The `IMAGE_TAG_BLUE` or `IMAGE_TAG_GREEN` variable in the deploy script is set to the incoming SHA, which is passed to Docker Compose for the new container.
 
-Frontend assets are not separately versioned — they are rebuilt on every deploy and copied as `frontend/dist` to the droplet, tied to the same commit that triggered the pipeline.
+Frontend assets are not separately versioned — they are rebuilt on every deploy and copied as `frontend/dist` to the host server, tied to the same commit that triggered the pipeline.
 
 ---
 
@@ -122,9 +124,9 @@ Frontend assets are not separately versioned — they are rebuilt on every deplo
 
 | Item | Managed by |
 |---|---|
-| Droplet provisioning | Manual (DigitalOcean) |
+| Server provisioning | Manual (e.g., VPS provider) |
 | DNS records (`api.nishantdd.dev`, `app.nishantdd.dev`) | Manual |
 | Let's Encrypt certificate issuance/renewal | Manual (certbot on host) |
-| `.env` on the droplet | Manual |
+| `.env` on the host | Manual |
 
 See [deployment.md](deployment.md) for infrastructure and TLS setup details.
