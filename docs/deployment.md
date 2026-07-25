@@ -54,8 +54,8 @@ The Nginx container bind-mounts:
 | Host path | Container path | Purpose |
 |---|---|---|
 | `./nginx.conf` | `/etc/nginx/nginx.conf` | Routing and TLS config |
-| `/etc/letsencrypt` | `/etc/nginx/ssl` | TLS certificates |
-| `./certbot-www` | `/var/www/certbot` | ACME HTTP-01 challenges |
+| `certbot_conf` (named volume) | `/etc/nginx/ssl` | TLS certificates |
+| `certbot_www` (named volume) | `/var/www/certbot` | ACME HTTP-01 challenges |
 | `./frontend/dist` | `/usr/share/nginx/html` | Built React SPA |
 
 ---
@@ -126,6 +126,21 @@ These properties can be overridden via environment variables using Spring's rela
 
 ---
 
+## Initial Server Bootstrap
+
+The repository includes `scripts/bootstrap.sh` to automate the complete initial provisioning of a fresh server. The script handles:
+
+1. Validating prerequisites (Docker, Docker Compose, curl, git).
+2. Generating temporary dummy certificates to allow Nginx to start.
+3. Starting the core infrastructure containers (`postgres`, `redis`, `nginx`).
+4. Using the `certbot` Docker container to acquire real Let's Encrypt certificates via the HTTP-01 challenge.
+5. Reloading Nginx with the real certificates.
+6. Reading the active application target from `nginx.conf` and starting it (`app-blue` or `app-green`).
+
+This fully resolves the chicken-and-egg dependency between Nginx needing SSL certificates to start and Certbot needing a running Nginx to acquire them.
+
+---
+
 ## Blue-Green Deployment
 
 Two app containers are defined in the compose file (`app-blue`, `app-green`). At any time, exactly one is the active traffic target.
@@ -170,11 +185,11 @@ Common settings:
 
 ## HTTPS / TLS
 
-Let's Encrypt certificates are bind-mounted from the host into the Nginx container:
+Let's Encrypt certificates are stored in a Docker named volume (`certbot_conf`) and mounted into the Nginx container:
 
-| Host path | Container path |
+| Volume | Container path |
 |---|---|
-| `/etc/letsencrypt` | `/etc/nginx/ssl` |
+| `certbot_conf` | `/etc/nginx/ssl` |
 
 Nginx uses separate certificate pairs per domain:
 
@@ -183,7 +198,7 @@ Nginx uses separate certificate pairs per domain:
 | `api.nishantdd.dev` | `/etc/nginx/ssl/live/api.nishantdd.dev/fullchain.pem`, `privkey.pem` |
 | `app.nishantdd.dev` | `/etc/nginx/ssl/live/app.nishantdd.dev/fullchain.pem`, `privkey.pem` |
 
-SSL termination is valid for both production domains. The production compose configuration requires Let's Encrypt certificates already provisioned on the host — it is not suitable for bare `localhost` usage without modification.
+SSL termination is valid for both production domains. The `scripts/bootstrap.sh` script automates the initial provisioning of Let's Encrypt certificates into the Docker volumes.
 
 ---
 

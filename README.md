@@ -48,7 +48,7 @@ course-management-api/
 ├── src/                      # Spring Boot backend
 ├── frontend/                 # React + Vite SPA
 ├── docs/                     # Technical documentation
-├── scripts/                  # Deployment scripts (blue-green cutover)
+├── scripts/                  # Infrastructure bootstrap and deployment scripts
 ├── docker-compose.yml        # Production stack (Postgres, Redis, Nginx, app-blue/green)
 ├── docker-compose.dev.yml    # Local dev stack with hot reload
 ├── Dockerfile                # Production API image
@@ -132,7 +132,7 @@ Starts PostgreSQL, Redis, and the Spring Boot app with source mounted for DevToo
 docker compose up -d
 ```
 
-Starts `postgres`, `redis`, `nginx`, and `app-blue`. Requires Let's Encrypt certificates on the host at `/etc/letsencrypt`. Traffic is served on ports 80/443 — not on `localhost:8080`. See [docs/deployment.md](docs/deployment.md).
+Starts `postgres`, `redis`, `nginx`, and `app-blue`. The `scripts/bootstrap.sh` script automates the initial Let's Encrypt certificate setup. Traffic is served on ports 80/443 — not on `localhost:8080`. See [docs/deployment.md](docs/deployment.md).
 
 ### 4. Run the frontend locally
 
@@ -208,7 +208,7 @@ Full details: [docs/deployment.md](docs/deployment.md)
 
 ## CI/CD
 
-Automated via **GitHub Actions** (`.github/workflows/deploy.yml`).
+Automated via **GitHub Actions** (workflow currently disabled as `.github/workflows/deploy.yml.removed` since the production environment is inactive).
 
 | Step | Action |
 |---|---|

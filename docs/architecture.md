@@ -15,6 +15,7 @@ course-management-api/
 ├── src/                      # Backend source (Java)
 ├── frontend/                 # React + Vite SPA
 ├── docs/                     # Technical documentation
+├── scripts/bootstrap.sh      # Initial server provisioning script
 ├── scripts/deploy.sh         # Blue-green deployment script
 ├── docker-compose.yml        # Production stack
 ├── docker-compose.dev.yml    # Local dev stack

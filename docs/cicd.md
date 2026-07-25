@@ -8,7 +8,7 @@
 
 ## Overview
 
-Deployment is fully automated via **GitHub Actions** (`.github/workflows/deploy.yml`) and the remote `scripts/deploy.sh` script. Every push to `main` triggers the pipeline.
+Deployment automation is implemented via **GitHub Actions** (currently disabled as `.github/workflows/deploy.yml.removed`) and the remote `scripts/deploy.sh` script. When active, every push to `main` triggers the pipeline.
 
 The pipeline builds and deploys both the **backend Docker image** and the **frontend static assets**.
 
@@ -124,9 +124,9 @@ Frontend assets are not separately versioned — they are rebuilt on every deplo
 
 | Item | Managed by |
 |---|---|
-| Server provisioning | Manual (e.g., VPS provider) |
+| Initial VPS creation | Manual (e.g., VPS provider) |
+| Initial server bootstrap / setup | `scripts/bootstrap.sh` |
 | DNS records (`api.nishantdd.dev`, `app.nishantdd.dev`) | Manual |
-| Let's Encrypt certificate issuance/renewal | Manual (certbot on host) |
 | `.env` on the host | Manual |
 
 See [deployment.md](deployment.md) for infrastructure and TLS setup details.

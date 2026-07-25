@@ -175,7 +175,7 @@ npm run lint
 
 ## Deployment
 
-The GitHub Actions pipeline builds the frontend on every push to `main`:
+The GitHub Actions pipeline (currently disabled) builds the frontend on every push to `main`:
 
 1. `npm ci` in `frontend/`
 2. `npm run build` (uses `.env.production`)
