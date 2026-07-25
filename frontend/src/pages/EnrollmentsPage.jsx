@@ -12,6 +12,9 @@ import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import EmptyState from "../components/ui/EmptyState";
 import PageHeader from "../components/ui/PageHeader";
+import Skeleton from "../components/ui/Skeleton";
+import { useToast } from "../components/ui/ToastContext";
+import { ShieldAlert } from "lucide-react";
 
 const PAGE_SIZE = 10;
 
@@ -22,14 +25,13 @@ function getCourseIdFromSearch(search) {
 }
 
 export default function EnrollmentsPage({ onNavigate, search = "" }) {
-    const { currentUser, logout } = useAuth();
+    const { currentUser } = useAuth();
     const role = currentUser?.role ?? "STUDENT";
+    const toast = useToast();
 
     const [page, setPage] = useState(0);
     const [enrollmentsPage, setEnrollmentsPage] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState("");
-    const [notice, setNotice] = useState("");
     const [isActionLoading, setIsActionLoading] = useState(false);
 
     const [instructorCourses, setInstructorCourses] = useState([]);
@@ -39,9 +41,7 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
     const query = useMemo(() => ({ page, size: PAGE_SIZE }), [page]);
 
     const loadInstructorCourses = useCallback(async () => {
-        if (role !== "INSTRUCTOR") {
-            return;
-        }
+        if (role !== "INSTRUCTOR") return;
 
         try {
             const response = await fetchMyCourses({ page: 0, size: 50 });
@@ -53,74 +53,54 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                 : null;
 
             setSelectedCourseId((current) => {
-                if (current && courses.some((course) => String(course.id) === String(current))) {
-                    return String(current);
-                }
-
-                if (preferredFromUrl) {
-                    return String(preferredFromUrl.id);
-                }
-
-                if (courses.length > 0) {
-                    return String(courses[0].id);
-                }
-
+                if (current && courses.some((course) => String(course.id) === String(current))) return String(current);
+                if (preferredFromUrl) return String(preferredFromUrl.id);
+                if (courses.length > 0) return String(courses[0].id);
                 return "";
             });
         } catch (loadError) {
-            setError(mapEnrollmentError(loadError));
+            toast.error("Failed to load courses", mapEnrollmentError(loadError));
         }
-    }, [role, initialCourseIdFromSearch]);
+    }, [role, initialCourseIdFromSearch, toast]);
 
     const loadEnrollments = useCallback(async () => {
         setIsLoading(true);
-        setError("");
-
         try {
             let data;
-
             if (role === "INSTRUCTOR") {
                 if (!selectedCourseId) {
                     setEnrollmentsPage({ content: [], pageNumber: 0, totalPages: 0, hasNext: false, hasPrevious: false });
                     return;
                 }
-
                 data = await fetchCourseEnrollments(selectedCourseId, query);
             } else {
                 data = await fetchMyEnrollments(query);
             }
-
             setEnrollmentsPage(data);
         } catch (loadError) {
-            setError(mapEnrollmentError(loadError));
+            toast.error("Failed to load enrollments", mapEnrollmentError(loadError));
         } finally {
             setIsLoading(false);
         }
-    }, [role, query, selectedCourseId]);
+    }, [role, query, selectedCourseId, toast]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching on mount is a standard pattern in plain React.
         loadInstructorCourses();
     }, [loadInstructorCourses]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Data fetching on mount is a standard pattern in plain React.
         loadEnrollments();
     }, [loadEnrollments]);
 
     async function handleUnenroll(enrollment) {
         setIsActionLoading(true);
-        setNotice("");
-        setError("");
-
         try {
             await unenrollFromCourse(enrollment.courseId);
-            setNotice("Unenrolled successfully.");
+            toast.success("Success", "Unenrolled successfully.");
             setEnrollmentsPage((prev) => {
-                if (!prev) {
-                    return prev;
-                }
-
+                if (!prev) return prev;
                 return {
                     ...prev,
                     content: (prev.content ?? []).filter((item) => item.id !== enrollment.id),
@@ -129,7 +109,7 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                 };
             });
         } catch (actionError) {
-            setError(mapEnrollmentError(actionError));
+            toast.error("Failed to unenroll", mapEnrollmentError(actionError));
         } finally {
             setIsActionLoading(false);
         }
@@ -137,7 +117,7 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
 
     if (role === "ADMIN") {
         return (
-            <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+            <div className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100">
                 <main className="mx-auto w-full max-w-6xl space-y-6">
                     <PageHeader
                         eyebrow="Administration"
@@ -149,7 +129,7 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                     />
 
                     <EmptyState
-                        icon="🚫"
+                        icon={ShieldAlert}
                         title="Admin enrollment view unavailable"
                         description="You can still navigate to the dashboard or manage courses, but the admin enrollment view is not exposed yet."
                         actionLabel="Back to dashboard"
@@ -164,8 +144,8 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
     const enrollments = enrollmentsPage?.content ?? [];
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100">
-            <main className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8">
+        <div className="min-h-screen bg-zinc-950 text-zinc-100">
+            <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8">
                 <PageHeader
                     eyebrow={role === "INSTRUCTOR" ? "Instructor workspace" : "Student workspace"}
                     title="Enrollments"
@@ -173,25 +153,24 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                         ? "Inspect student enrollments for the courses you own."
                         : "Review the courses you are enrolled in and manage your active enrollments."}
                     actions={(
-                        <>
+                        <div className="flex gap-2">
                             <Button type="button" variant="outline" size="sm" onClick={() => onNavigate?.("/dashboard")}>Dashboard</Button>
                             <Button type="button" variant="outline" size="sm" onClick={() => onNavigate?.("/courses")}>Courses</Button>
-                            <Button type="button" variant="outline" size="sm" onClick={logout}>Logout</Button>
-                        </>
+                        </div>
                     )}
                 />
 
                 {role === "INSTRUCTOR" ? (
                     <Card className="space-y-4">
                         <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Course selector</p>
-                            <h2 className="mt-2 text-xl font-semibold tracking-tight text-slate-50">Choose a course to inspect</h2>
+                            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-500">Course selector</p>
+                            <h2 className="mt-2 text-lg font-semibold tracking-tight text-zinc-50">Choose a course to inspect</h2>
                         </div>
 
                         <label className="block max-w-sm text-sm">
-                            <span className="mb-1.5 block font-medium text-slate-300">Select course</span>
+                            <span className="mb-1.5 block font-medium text-zinc-400">Select course</span>
                             <select
-                                className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-slate-100 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                className="w-full rounded-lg border border-zinc-700 bg-zinc-950/80 px-3 py-2.5 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                                 value={selectedCourseId}
                                 onChange={(event) => {
                                     setSelectedCourseId(event.target.value);
@@ -207,25 +186,13 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                     </Card>
                 ) : null}
 
-                {notice ? (
-                    <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                        {notice}
-                    </div>
-                ) : null}
-
-                {error ? (
-                    <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                        {error}
-                    </div>
-                ) : null}
-
                 {isLoading ? (
-                    <div className="rounded-2xl border border-slate-800/80 bg-slate-900/95 px-6 py-10 text-sm text-slate-300">
-                        Loading enrollments...
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                            <Skeleton key={i} className="h-40 w-full rounded-2xl" />
+                        ))}
                     </div>
-                ) : null}
-
-                {!isLoading ? (
+                ) : (
                     <EnrollmentList
                         enrollments={enrollments}
                         mode={role === "INSTRUCTOR" ? "instructor" : "student"}
@@ -233,12 +200,10 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                         isActionLoading={isActionLoading}
                         emptyState={role === "INSTRUCTOR"
                             ? {
-                                icon: "📘",
                                 title: "No enrollments yet",
                                 description: "No students have enrolled in the selected course yet.",
                             }
                             : {
-                                icon: "📚",
                                 title: "No enrollments yet",
                                 description: "You are not enrolled in any courses yet.",
                                 actionLabel: "Browse courses",
@@ -246,10 +211,10 @@ export default function EnrollmentsPage({ onNavigate, search = "" }) {
                                 onAction: () => onNavigate?.("/courses"),
                             }}
                     />
-                ) : null}
+                )}
 
-                {!isLoading && enrollmentsPage ? (
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800/80 bg-slate-900/80 px-4 py-3 text-sm text-slate-300">
+                {!isLoading && enrollmentsPage && enrollmentsPage.totalPages > 1 ? (
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-800/80 bg-zinc-900/50 px-4 py-3 text-sm text-zinc-400">
                         <div>
                             Page {enrollmentsPage.pageNumber + 1} of {Math.max(enrollmentsPage.totalPages, 1)}
                         </div>

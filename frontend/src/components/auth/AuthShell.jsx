@@ -5,42 +5,49 @@ export default function AuthShell({
     children,
     footer,
 }) {
-    const accent = variant === "register" ? "from-emerald-500 to-teal-500" : "from-blue-500 to-indigo-500";
-    const highlights = variant === "register"
-        ? ["Fast onboarding", "Role-aware access", "Clean course management"]
-        : ["Secure JWT sessions", "Responsive dashboard", "Role-aware workflows"];
+    const isRegister = variant === "register";
 
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100">
-            <div className="mx-auto grid min-h-screen w-full max-w-6xl items-center gap-6 px-4 py-8 lg:grid-cols-[1.05fr_0.95fr]">
-                <section className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-slate-950/80 p-8 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.9)]">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 via-transparent to-indigo-500/10" />
-                    <div className={`absolute right-8 top-8 h-28 w-28 rounded-full bg-gradient-to-br ${accent} opacity-20 blur-3xl`} />
-
-                    <div className="relative space-y-6">
-                        <p className="text-sm font-semibold uppercase tracking-[0.28em] text-slate-500">Course Management</p>
-                        <div className={`h-1.5 w-24 rounded-full bg-gradient-to-r ${accent}`} />
-                        <h1 className="max-w-xl text-4xl font-semibold tracking-tight text-slate-50 lg:text-5xl">{title}</h1>
-                        <p className="max-w-xl text-base leading-7 text-slate-300">{subtitle}</p>
-
-                        <div className="grid gap-3 pt-2 sm:grid-cols-3">
-                            {highlights.map((item) => (
-                                <div key={item} className="rounded-2xl border border-slate-800/80 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
-                                    {item}
-                                </div>
-                            ))}
+        <div className="flex min-h-screen w-full bg-zinc-950 text-zinc-100">
+            {/* Left side form */}
+            <div className="flex w-full flex-col justify-center px-4 py-12 sm:px-6 lg:flex-none lg:w-1/2 lg:px-20 xl:px-24">
+                <div className="mx-auto w-full max-w-sm lg:w-96">
+                    <div className="mb-8">
+                        <div className="flex h-12 w-12 items-center justify-center">
+                            <img src="/logo.png" alt="Course Management Logo" className="h-full w-full object-contain" />
                         </div>
+                        <h2 className="mt-6 text-3xl font-semibold tracking-tighter text-zinc-50">{title}</h2>
+                        <p className="mt-2 text-sm leading-6 text-zinc-400">{subtitle}</p>
                     </div>
-                </section>
 
-                <section className="rounded-3xl border border-slate-800/80 bg-slate-900/95 p-8 shadow-[0_24px_80px_-40px_rgba(15,23,42,0.9)]">
-                    <div className="space-y-6">
+                    <div className="mt-10">
                         {children}
-                        {footer ? <div className="text-sm text-slate-300">{footer}</div> : null}
+                        {footer ? <div className="mt-6 text-sm text-zinc-400">{footer}</div> : null}
                     </div>
-                </section>
+                </div>
+            </div>
+            
+            {/* Right side visual */}
+            <div className="relative hidden w-0 flex-1 lg:block overflow-hidden border-l border-zinc-800/80 bg-zinc-900/50">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-zinc-900/50 to-indigo-500/5" />
+                
+                {/* Decorative mesh/blur effect */}
+                <div className="absolute top-[20%] left-[20%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-3xl opacity-50" />
+                <div className="absolute bottom-[20%] right-[20%] w-[400px] h-[400px] bg-indigo-500/10 rounded-full blur-3xl opacity-50" />
+
+                <div className="absolute inset-0 flex items-center justify-center p-12">
+                    <div className="max-w-md space-y-6 text-center">
+                        <h3 className="text-3xl font-semibold tracking-tighter text-zinc-100">
+                            {isRegister ? "Join the platform" : "Manage your learning"}
+                        </h3>
+                        <p className="text-zinc-400">
+                            {isRegister 
+                                ? "Sign up to unlock course enrollment, track your progress, and manage your educational journey." 
+                                : "Securely sign in to access your dashboard, active courses, and platform tools."}
+                        </p>
+                    </div>
+                </div>
             </div>
         </div>
     );
 }
-

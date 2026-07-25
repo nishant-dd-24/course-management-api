@@ -62,22 +62,22 @@ function buildLoginNotice(search) {
 
 function FullScreenMessage({ text }) {
     return (
-        <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 text-slate-100">
-            <Card className="px-6 py-4 text-sm text-slate-300">{text}</Card>
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 px-4 text-zinc-100">
+            <Card className="px-6 py-4 text-sm text-zinc-300">{text}</Card>
         </div>
     );
 }
 
 function FeaturePlaceholder({ title, onBack }) {
     return (
-        <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+        <div className="min-h-screen bg-zinc-950 px-4 py-8 text-zinc-100">
             <Card className="mx-auto max-w-2xl space-y-4 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-800 text-2xl">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-2xl">
                     ⚠️
                 </div>
                 <div className="space-y-2">
-                    <h1 className="text-2xl font-semibold tracking-tight text-slate-50">{title}</h1>
-                    <p className="text-sm leading-6 text-slate-300">
+                    <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">{title}</h1>
+                    <p className="text-sm leading-6 text-zinc-300">
                         This page is the next step after dashboard navigation and can be implemented incrementally.
                     </p>
                 </div>

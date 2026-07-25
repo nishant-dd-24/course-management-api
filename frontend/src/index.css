@@ -1,17 +1,46 @@
 @import "tailwindcss";
 
+@theme {
+  --color-zinc-850: #1f1f22;
+  --color-zinc-950: #09090b;
+  --animate-in: in 0.2s ease-out;
+  --animate-out: out 0.15s ease-in;
+  --animate-slide-up: slide-up 0.2s ease-out;
+  --animate-toast-in: toast-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(100%) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 :root {
-  --bg: #111827;
-  --surface: #1f2937;
-  --surface-2: #0f172a;
-  --primary: #3b82f6;
+  --bg: #09090b; /* zinc-950 */
+  --surface: #18181b; /* zinc-900 */
+  --surface-2: #27272a; /* zinc-800 */
+  --primary: #3b82f6; /* blue-500 */
   --primary-soft: rgba(59, 130, 246, 0.18);
-  --success: #22c55e;
-  --warning: #f59e0b;
-  --danger: #ef4444;
-  --text: #e5eefb;
-  --muted: #94a3b8;
-  --border: #334155;
+  --success: #10b981; /* emerald-500 */
+  --warning: #f59e0b; /* amber-500 */
+  --danger: #ef4444; /* red-500 */
+  --text: #f4f4f5; /* zinc-100 */
+  --muted: #a1a1aa; /* zinc-400 */
+  --border: #27272a; /* zinc-800 */
   --heading: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   --body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
@@ -40,9 +69,9 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 35%),
-    var(--bg);
+  background: var(--bg);
+  background-image: 
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.12), transparent);
   color: var(--text);
 }
 
@@ -61,28 +90,35 @@ h3,
 h4 {
   font-family: var(--heading);
   color: var(--text);
+  letter-spacing: -0.025em; /* Tighter tracking for premium feel */
 }
 
 h1 {
   font-size: clamp(2rem, 3vw, 2.5rem);
   line-height: 1.1;
+  font-weight: 600;
   margin: 0;
+  letter-spacing: -0.035em;
 }
 
 h2 {
-  font-size: clamp(1.35rem, 2vw, 1.6rem);
+  font-size: clamp(1.25rem, 2vw, 1.5rem);
   line-height: 1.2;
+  font-weight: 500;
   margin: 0;
 }
 
 h3 {
   font-size: 1.125rem;
   line-height: 1.3;
+  font-weight: 500;
   margin: 0;
+  letter-spacing: -0.015em;
 }
 
 p {
   margin: 0;
+  letter-spacing: -0.01em; /* Subtle improvement to body readability */
 }
 
 a {
@@ -140,10 +176,10 @@ textarea {
   padding: 1rem 1.25rem;
   background: rgba(255, 255, 255, 0.02);
   color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.75rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.08em;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 

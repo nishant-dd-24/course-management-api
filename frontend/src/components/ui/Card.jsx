@@ -6,7 +6,7 @@ export default function Card({ as: Wrapper = "div", className, children, ...prop
         Wrapper,
         {
             className: cn(
-                "rounded-2xl border border-slate-800/80 bg-slate-900/95 p-6 shadow-[0_1px_0_rgba(255,255,255,0.02)] transition duration-150 ease-out hover:border-slate-700 hover:shadow-lg hover:shadow-slate-950/40",
+                "rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-6 shadow-sm backdrop-blur-md",
                 className
             ),
             ...props,

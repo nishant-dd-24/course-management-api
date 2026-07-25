@@ -65,9 +65,9 @@ export default function Login({ onSuccessRedirect = "/dashboard", onNavigate, no
 
             <form className="space-y-5" onSubmit={handleSubmit}>
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Email</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Email</span>
                     <input
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                         placeholder="you@example.com"
                         type="email"
                         value={email}
@@ -80,11 +80,11 @@ export default function Login({ onSuccessRedirect = "/dashboard", onNavigate, no
                 </label>
 
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Password</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Password</span>
                     <div className="flex gap-2">
                         <input
                             type={showPassword ? "text" : "password"}
-                            className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                            className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                             placeholder="Enter your password"
                             value={password}
                             onChange={(event) => {
@@ -96,7 +96,7 @@ export default function Login({ onSuccessRedirect = "/dashboard", onNavigate, no
                         <Button
                             type="button"
                             variant="outline"
-                            size="sm"
+                            size="md"
                             onClick={() => setShowPassword((prev) => !prev)}
                         >
                             {showPassword ? "Hide" : "Show"}
@@ -107,8 +107,9 @@ export default function Login({ onSuccessRedirect = "/dashboard", onNavigate, no
                 <Button
                     type="submit"
                     variant="primary"
-                    className="w-full"
+                    className="w-full mt-2"
                     disabled={!canSubmit}
+                    isLoading={isSubmitting}
                 >
                     {isSubmitting ? "Signing in..." : "Sign in"}
                 </Button>

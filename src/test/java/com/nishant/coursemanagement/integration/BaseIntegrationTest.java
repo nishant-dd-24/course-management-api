@@ -96,6 +96,7 @@ public abstract class BaseIntegrationTest extends TestContainerConfig {
         if(redisTemplate != null){
             redisTemplate.getConnectionFactory()
                     .getConnection()
+                    .serverCommands()
                     .flushAll();
         }
 

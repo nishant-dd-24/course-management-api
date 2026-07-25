@@ -144,61 +144,62 @@ export default function Register({ onNavigate }) {
 
             <form className="space-y-5" onSubmit={handleSubmit}>
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Name</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Name</span>
                     <input
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                         placeholder="John Doe"
                         value={values.name}
                         onChange={(event) => updateField("name", event.target.value)}
                         required
                     />
-                    {fieldErrors.name ? <span className="mt-1 block text-xs text-red-300">{fieldErrors.name}</span> : null}
+                    {fieldErrors.name ? <span className="mt-1 block text-xs text-red-400">{fieldErrors.name}</span> : null}
                 </label>
 
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Email</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Email</span>
                     <input
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                         placeholder="you@example.com"
                         type="email"
                         value={values.email}
                         onChange={(event) => updateField("email", event.target.value)}
                         required
                     />
-                    {fieldErrors.email ? <span className="mt-1 block text-xs text-red-300">{fieldErrors.email}</span> : null}
+                    {fieldErrors.email ? <span className="mt-1 block text-xs text-red-400">{fieldErrors.email}</span> : null}
                 </label>
 
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Password</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Password</span>
                     <input
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                         placeholder="At least 8 characters"
                         type="password"
                         value={values.password}
                         onChange={(event) => updateField("password", event.target.value)}
                         required
                     />
-                    {fieldErrors.password ? <span className="mt-1 block text-xs text-red-300">{fieldErrors.password}</span> : null}
+                    {fieldErrors.password ? <span className="mt-1 block text-xs text-red-400">{fieldErrors.password}</span> : null}
                 </label>
 
                 <label className="block text-sm">
-                    <span className="mb-1.5 block text-sm font-medium text-slate-300">Confirm password</span>
+                    <span className="mb-1.5 block text-sm font-medium text-zinc-300">Confirm password</span>
                     <input
-                        className="w-full rounded-xl border border-slate-700 bg-slate-950/80 px-4 py-3 text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                        className="w-full rounded-lg border border-zinc-700 bg-zinc-950/50 px-4 py-3 text-zinc-100 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50"
                         placeholder="Re-enter your password"
                         type="password"
                         value={values.confirmPassword}
                         onChange={(event) => updateField("confirmPassword", event.target.value)}
                         required
                     />
-                    {fieldErrors.confirmPassword ? <span className="mt-1 block text-xs text-red-300">{fieldErrors.confirmPassword}</span> : null}
+                    {fieldErrors.confirmPassword ? <span className="mt-1 block text-xs text-red-400">{fieldErrors.confirmPassword}</span> : null}
                 </label>
 
                 <Button
                     type="submit"
                     variant="primary"
-                    className="w-full"
+                    className="w-full mt-2"
                     disabled={!canSubmit}
+                    isLoading={isSubmitting}
                 >
                     {isSubmitting ? "Creating account..." : "Create account"}
                 </Button>
